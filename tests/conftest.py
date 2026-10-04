@@ -37,6 +37,15 @@ MANIFESTS = {
                         'version = "{v}"\nedition = "2024"\n\n[workspace.dependencies]\n'
                         'core = {{ path = "crates/core", version = "{v}" }}\n',
                         ["crates/", "Cargo.toml"], "crates/core/src/lib.rs"),
+    # A workspace and a crate in it released with a version of its own:
+    # both start at the same version, so a workspace bump that moved the
+    # crate's pin along with its own would go unnoticed otherwise.
+    "multi": ("cargo-workspace", "Cargo.toml",
+              '[workspace]\nmembers = ["crates/*"]\n\n[workspace.package]\n'
+              'version = "{v}"\nedition = "2024"\n\n[workspace.dependencies]\n'
+              'core = {{ path = "crates/core", version = "{v}" }}\n'
+              'algo = {{ path = "crates/algo", version = "{v}" }}\n',
+              ["crates/", "Cargo.toml"], "crates/core/src/lib.rs"),
     "pyproject": ("pyproject", "pyproject.toml",
                   '[project]\nname = "demo"\nversion = "{v}"\n',
                   ["src/", "pyproject.toml"], "src/demo/__init__.py"),
@@ -75,11 +84,24 @@ class Package:
         (self.root / manifest).write_text(template.format(v=version))
         (self.root / source).parent.mkdir(parents=True, exist_ok=True)
         (self.root / source).write_text("// demo\n")
-        (self.root / "release.json").write_text(json.dumps({
+        demo = {
             "name": "demo", "package": "pkg.demo", "tag": "PKG-DEMOPK-10-2026",
-            "corpus": "corpus", "manifest": {"kind": manifest_kind, "path": manifest},
-            "code": code,
-        }, indent=2))
+            "manifest": {"kind": manifest_kind, "path": manifest}, "code": code,
+        }
+        if kind == "multi":
+            algo = self.root / "crates" / "algo"
+            (algo / "src").mkdir(parents=True)
+            (algo / "src" / "lib.rs").write_text("// algo\n")
+            (algo / "Cargo.toml").write_text(
+                f'[package]\nname = "demo-algo"\nversion = "{version}"\nedition = "2024"\n')
+            config = {"corpus": "corpus", "packages": [demo, {
+                "name": "demo-algo", "package": "pkg.demo-algo", "tag": "PKG-DEMOAL-10-2026",
+                "manifest": {"kind": "cargo-package", "path": "crates/algo/Cargo.toml"},
+                "code": ["crates/algo/"],
+            }]}
+        else:
+            config = {**demo, "corpus": "corpus"}
+        (self.root / "release.json").write_text(json.dumps(config, indent=2))
         (self.root / ".gitignore").write_text("/corpus/.publet/\n")
         corpus = self.root / "corpus"
         corpus.mkdir()
@@ -146,26 +168,37 @@ class Package:
 
     # --- shaping the history ---------------------------------------------
 
-    def add(self, category: str, change: str):
-        self.ok(str(self.pubrel), "add", category, change)
+    def add(self, category: str, change: str, package: str | None = None):
+        named = ["--package", package] if package else []
+        self.ok(str(self.pubrel), "add", category, change, *named)
 
-    def release(self):
+    def cut(self, package: str | None = None) -> str:
+        """Cut a release on its branch, as `prepare` does; return the branch."""
+        named = ["--package", package] if package else []
+        self.ok(str(self.pubrel), "prepare", "--no-pr", *named)
+        self.last_branch = self.git("rev-parse", "--abbrev-ref", "HEAD")
+        return self.last_branch
+
+    def release(self, package: str | None = None):
         """Cut a release and merge it, as merging its PR would."""
-        self.ok(str(self.pubrel), "prepare", "--no-pr")
-        branch = self.git("rev-parse", "--abbrev-ref", "HEAD")
+        branch = self.cut(package)
         self.git("checkout", "-q", "main")
         self.git("merge", "-q", "--ff-only", branch)
         self.git("push", "-q", "origin", "main")
 
     # --- reading back -----------------------------------------------------
 
-    def unreleased(self) -> list[dict]:
-        path = self.root / "corpus" / "publets" / "pkg.demo" / "unreleased.json"
+    def unreleased(self, package: str = "pkg.demo") -> list[dict]:
+        path = self.root / "corpus" / "publets" / package / "unreleased.json"
         return json.loads(path.read_text())["changes"] if path.exists() else []
 
-    def manifest_version(self) -> str:
-        text = (self.root / self.manifest).read_text()
+    def manifest_version(self, manifest: str | None = None) -> str:
+        text = (self.root / (manifest or self.manifest)).read_text()
         return re.search(r'^version = "([^"]+)"', text, re.M).group(1)
+
+    def pinned(self, path: str) -> str:
+        text = (self.root / "Cargo.toml").read_text()
+        return re.search(rf'path = "{re.escape(path)}", version = "([^"]+)"', text).group(1)
 
     def published(self, slug: str) -> dict:
         lock = json.loads((self.root / "corpus" / "corpus.lock").read_text())

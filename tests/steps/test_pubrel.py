@@ -13,6 +13,7 @@ scenarios("../features/prepare.feature")
 scenarios("../features/tag.feature")
 scenarios("../features/changelog.feature")
 scenarios("../features/verify.feature")
+scenarios("../features/multi.feature")
 
 
 # --- givens ------------------------------------------------------------------
@@ -250,3 +251,91 @@ def under_heading(pkg, entry: str, heading: str):
     text = (pkg.root / "CHANGELOG.md").read_text()
     section = text.split(heading, 1)[1]
     assert f"- {entry}" in section.split("##", 1)[0], text
+
+
+# --- several packages --------------------------------------------------------
+
+
+@given(parsers.parse('a workspace whose "{a}" and "{b}" are released at version "{version}"'),
+       target_fixture="pkg")
+def multi_released(make_package, a: str, b: str, version: str):
+    pkg = make_package("multi", version)
+    for name in (a, b):
+        pkg.add("added", f"the first release of {name}", package=name)
+        pkg.commit(f"record {name}'s first release")
+        pkg.git("push", "-q", "origin", "main")
+        pkg.release(package=name)
+    return pkg
+
+
+@when(parsers.parse('"{name}" records "{category}" "{change}" and is released'))
+def multi_release(pkg, name: str, category: str, change: str):
+    pkg.add(category, change, package=name)
+    pkg.commit(f"record a change to {name}")
+    pkg.git("push", "-q", "origin", "main")
+    pkg.release(package=name)
+
+
+@when(parsers.parse('"{name}" records "{category}" "{change}" and its release is cut'))
+def multi_cut(pkg, name: str, category: str, change: str):
+    pkg.add(category, change, package=name)
+    pkg.commit(f"record a change to {name}")
+    pkg.git("push", "-q", "origin", "main")
+    pkg.cut(package=name)
+
+
+@when(parsers.parse('"{name}" records "{category}" "{change}" on main'))
+def multi_record(pkg, name: str, category: str, change: str):
+    pkg.add(category, change, package=name)
+    pkg.commit(f"record a change to {name}")
+
+
+@when(parsers.parse('a branch changes "{path}" and records "{category}" "{change}" for "{name}"'))
+def multi_branch(pkg, path: str, category: str, change: str, name: str):
+    branch_changes(pkg, path)
+    pkg.add(category, change, package=name)
+    pkg.commit("record it")
+
+
+@when(parsers.parse('it also records "{category}" "{change}" for "{name}"'))
+def multi_also(pkg, category: str, change: str, name: str):
+    pkg.add(category, change, package=name)
+    pkg.commit("record it too")
+
+
+@when(parsers.parse('I run pubrel add "{category}" "{change}" without naming a package'),
+      target_fixture="result")
+def multi_add_unnamed(pkg, category: str, change: str):
+    return pkg.pubrel_run("add", category, change)
+
+
+@then(parsers.parse('the release branch is "{branch}"'))
+def release_branch(pkg, branch: str):
+    assert pkg.last_branch == branch, pkg.last_branch
+
+
+@then(parsers.parse('"{manifest}" states "{version}"'))
+def manifest_at(pkg, manifest: str, version: str):
+    assert pkg.manifest_version(manifest) == version
+
+
+@then(parsers.parse('the workspace states "{version}"'))
+def workspace_states(pkg, version: str):
+    assert pkg.manifest_version("Cargo.toml") == version
+
+
+@then(parsers.parse('the workspace pins "{path}" at "{version}"'))
+def workspace_pins(pkg, path: str, version: str):
+    assert pkg.pinned(path) == version, (pkg.root / "Cargo.toml").read_text()
+
+
+@then(parsers.parse('the tag "{tag}" exists'))
+def tag_present(pkg, tag: str):
+    assert pkg.git("tag", "-l", tag) == tag
+
+
+@then(parsers.parse('"{path}" names the package publet "{slug}"'))
+def changelog_names(pkg, path: str, slug: str):
+    text = (pkg.root / path).read_text()
+    assert f"package publet `{slug}`" in text, text
+    assert "## 0.1.0" in text, text

@@ -1,4 +1,13 @@
 {
-  "changes": [],
+  "changes": [
+    {
+      "category": "added",
+      "change": "release.json may list several `packages` -- a workspace and crates in it released with versions of their own -- each with its own unreleased list, package publet, changelog and tag prefix (`publet-core-v0.1.1`). add, next and prepare take --package; check, changelog and tag act on every package. A workspace bump leaves the pins of independently versioned crates alone, and their own releases pin their new versions in the workspace."
+    },
+    {
+      "category": "added",
+      "change": "A sixth change category, `internal`: a code change nothing users run sees (a refactor, a crate moved). It satisfies check, never bumps the version, and is listed in the next release something else makes."
+    }
+  ],
   "comment": "Changes not yet released. One row per change: category changed or removed (a published interface changed: major), added (a feature: minor), or fixed or security (patch). `pubrel add` appends one; `pubrel prepare` moves them into the package publet."
 }

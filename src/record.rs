@@ -13,7 +13,13 @@ use serde_json::{Value, json};
 use crate::manifest::Kind;
 use crate::version::{self, Version};
 
-/// A repository's `release.json`.
+/// One package a repository releases, as `release.json` describes it.
+///
+/// A repository releases one package -- `release.json` is then that
+/// package's description -- or several, listed under `packages`, each with
+/// its own manifest, code paths, package publet and tag prefix. The corpus
+/// and the signing key are the repository's, shared unless a package names
+/// its own.
 pub struct Config {
     pub root: PathBuf,
     /// The package's name, as releases are titled: `publet-cli`.
@@ -22,6 +28,8 @@ pub struct Config {
     pub package: String,
     /// Its Section 9.1 citation tag.
     pub tag: String,
+    /// What a release's git tag starts with: `v`, or `publet-core-v`.
+    pub tag_prefix: String,
     /// The corpus directory, relative to the root.
     pub corpus: PathBuf,
     pub kind: Kind,
@@ -34,15 +42,17 @@ pub struct Config {
     pub install: Option<String>,
     /// The key object a release must be signed by: the corpus's author.
     pub key: Option<String>,
+    /// The generated changelog, relative to the root.
+    pub changelog: PathBuf,
 }
 
 impl Config {
-    /// Read `release.json` from `root`.
+    /// Every package `release.json` at `root` describes.
     ///
     /// # Errors
     ///
     /// Returns a message if it is missing or malformed.
-    pub fn read(root: &Path) -> Result<Self, String> {
+    pub fn read_all(root: &Path) -> Result<Vec<Self>, String> {
         let path = root.join("release.json");
         let text = std::fs::read_to_string(&path).map_err(|_| {
             format!(
@@ -52,7 +62,37 @@ impl Config {
         })?;
         let json: Value =
             serde_json::from_str(&text).map_err(|e| format!("{}: {e}", path.display()))?;
+        let Some(packages) = json.get("packages") else {
+            return Ok(vec![Self::from_json(root, &json, &json, false)?]);
+        };
+        let packages = packages
+            .as_array()
+            .filter(|p| !p.is_empty())
+            .ok_or("release.json's `packages` must list at least one package")?;
+        let all = packages
+            .iter()
+            .map(|p| Self::from_json(root, p, &json, true))
+            .collect::<Result<Vec<_>, _>>()?;
+        for (i, a) in all.iter().enumerate() {
+            if all
+                .iter()
+                .skip(i + 1)
+                .any(|b| b.name == a.name || b.tag_prefix == a.tag_prefix)
+            {
+                return Err(format!(
+                    "release.json lists two packages with the name or tag prefix of {}",
+                    a.name
+                ));
+            }
+        }
+        Ok(all)
+    }
+
+    /// One package, from its entry; `top` supplies what packages share.
+    fn from_json(root: &Path, json: &Value, top: &Value, listed: bool) -> Result<Self, String> {
         let text = |k: &str| json.get(k).and_then(Value::as_str).map(str::to_owned);
+        let shared =
+            |k: &str| text(k).or_else(|| top.get(k).and_then(Value::as_str).map(str::to_owned));
         let need = |k: &str| text(k).ok_or_else(|| format!("release.json needs `{k}`"));
         let manifest = json
             .get("manifest")
@@ -69,19 +109,41 @@ impl Config {
                 c.get("check")?.as_str()?.to_owned(),
             ))
         });
+        let manifest = PathBuf::from(
+            manifest
+                .get("path")
+                .and_then(Value::as_str)
+                .ok_or("manifest.path is required")?,
+        );
+        let name = need("name")?;
+        // A listed package's tags and changelog sit beside its own manifest
+        // unless it says otherwise; a repository's only package keeps `v`
+        // and the root CHANGELOG.md, as it always has.
+        let tag_prefix = text("tag-prefix").unwrap_or_else(|| {
+            if listed && manifest.parent().is_some_and(|d| !d.as_os_str().is_empty()) {
+                format!("{name}-v")
+            } else {
+                "v".to_owned()
+            }
+        });
+        let changelog = text("changelog").map_or_else(
+            || {
+                manifest
+                    .parent()
+                    .map_or_else(PathBuf::new, Path::to_path_buf)
+                    .join("CHANGELOG.md")
+            },
+            PathBuf::from,
+        );
         Ok(Self {
             root: root.to_path_buf(),
-            name: need("name")?,
+            name,
             package: need("package")?,
             tag: need("tag")?,
-            corpus: PathBuf::from(text("corpus").unwrap_or_else(|| "corpus".to_owned())),
+            tag_prefix,
+            corpus: PathBuf::from(shared("corpus").unwrap_or_else(|| "corpus".to_owned())),
             kind,
-            manifest: PathBuf::from(
-                manifest
-                    .get("path")
-                    .and_then(Value::as_str)
-                    .ok_or("manifest.path is required")?,
-            ),
+            manifest,
             code: json
                 .get("code")
                 .and_then(Value::as_array)
@@ -94,8 +156,30 @@ impl Config {
                 .unwrap_or_default(),
             command,
             install: text("install"),
-            key: text("key"),
+            key: shared("key"),
+            changelog,
         })
+    }
+
+    /// The git tag a release of this package is: `v0.2.0`, `publet-core-v0.2.0`.
+    #[must_use]
+    pub fn git_tag(&self, version: Version) -> String {
+        format!("{}{version}", self.tag_prefix)
+    }
+
+    /// The directory holding the manifest, relative to the root: `crates/core`.
+    #[must_use]
+    pub fn manifest_dir(&self) -> String {
+        self.manifest
+            .parent()
+            .map(|d| d.to_string_lossy().into_owned())
+            .unwrap_or_default()
+    }
+
+    /// Whether a changed path is part of what this package ships.
+    #[must_use]
+    pub fn owns(&self, path: &str) -> bool {
+        self.code.iter().any(|c| path.starts_with(c.as_str()))
     }
 
     pub fn corpus_dir(&self) -> PathBuf {
@@ -211,7 +295,7 @@ pub fn package_source(
     commit: &str,
     rows: &[Change],
 ) -> Value {
-    let tag = format!("v{version}");
+    let tag = cfg.git_tag(version);
     let (name, check, expect) = match &cfg.command {
         Some((name, check)) => (name.clone(), check.clone(), format!("{name} {version}")),
         None => (cfg.name.clone(), String::new(), String::new()),

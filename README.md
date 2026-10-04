@@ -20,9 +20,12 @@ the last release:
 | `changed`, `removed` | an already-published interface changed: commands, flags, output, exit codes, file formats, object shapes | major |
 | `added` | a new feature | minor |
 | `fixed`, `security` | the same functionality | patch |
+| `internal` | code changed, nothing users run did: a refactor, a crate moved | none |
 
 A package never released before is first released at its manifest version,
-raised to at least 0.1.0.
+raised to at least 0.1.0. `internal` changes never make a release on their
+own; they wait for the next release something else makes, and are listed
+in it.
 
 ## Using it
 
@@ -55,6 +58,30 @@ Merging it is the release: CI tags it.
 `identity` and `release` claims carry a valid signature by it, and that every
 object they read hashes to its identifier; without `key` they warn and do
 not check signatures.
+
+A repository that releases more than one package lists them under
+`packages`; `corpus` and `key` at the top are shared:
+
+```json
+{ "corpus": "corpus", "key": "pub:sha2-256:…",
+  "packages": [
+    { "name": "publet-cli", "package": "pkg.publet-cli", "tag": "PKG-PUBCLI-10-2026",
+      "manifest": { "kind": "cargo-workspace", "path": "Cargo.toml" },
+      "code": ["crates/", "bin/", "porcelain/", "Cargo.toml", "Cargo.lock"] },
+    { "name": "publet-core", "package": "pkg.publet-core", "tag": "PKG-PUBCOR-10-2026",
+      "manifest": { "kind": "cargo-package", "path": "crates/publet-core/Cargo.toml" },
+      "code": ["crates/publet-core/"] } ] }
+```
+
+Each package has its own unreleased list, package publet, changelog (beside
+its manifest: `crates/publet-core/CHANGELOG.md`) and tag prefix
+(`publet-core-v0.1.1`; the root package keeps `v`; `tag-prefix` and
+`changelog` override them). `add`, `next` and `prepare` take `--package
+NAME`; `check`, `changelog` and `tag` act on every package. A changed path
+belongs to every package whose `code` covers it, so a change to a crate
+the workspace also ships is recorded in both lists. A workspace bump never
+moves the pin of a crate released on its own, even when their versions
+coincide; that crate's own release pins its new version in the workspace.
 
 Manifest kinds: `cargo-workspace` (the workspace version and every internal
 path dependency pinned at it), `cargo-package`, and `pyproject`. `command`
