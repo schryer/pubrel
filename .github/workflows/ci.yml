@@ -4,51 +4,18 @@ on:
   push: { branches: [main] }
   pull_request:
 
-env:
-  CARGO_TERM_COLOR: always
-  # The released pub the functional suite and the release workflow drive.
-  PUB_VERSION: v0.1.1
-
 jobs:
-  gates:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v5
-      - run: make fmt-check
-      - run: make lint
-      - run: make doc
-
-  test:
-    needs: gates
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-    runs-on: ${{ matrix.os }}
-    steps:
-      - uses: actions/checkout@v5
-      - run: cargo test
-
-  functional:
-    needs: gates
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-python@v5
-        with: { python-version: '3.14' }
-      - uses: actions/cache@v4
-        with:
-          path: ~/.cargo/bin/pub
-          key: pub-${{ env.PUB_VERSION }}
-      - run: command -v pub || cargo install --locked --git https://github.com/schryer/publet --tag "$PUB_VERSION" publet-cli
-      - run: make venv
-      - run: make functional
+  # The shared Rust CI: gates, cargo test on three platforms, and the Gherkin
+  # suite against a released pub.
+  ci:
+    uses: schryer/pubkit/.github/workflows/rust-ci.yml@v0.2.0
+    with: { pub-version: v0.1.1 }
 
   # pubrel is held to its own rules, by its own workflow, built from this
   # checkout -- so a change to the workflow is tested before a release
   # carries it to anyone else.
   release:
-    needs: [test, functional]
+    needs: ci
     uses: ./.github/workflows/release.yml
     with:
       pub-version: v0.1.1

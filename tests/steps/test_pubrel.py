@@ -133,26 +133,6 @@ def run_check(pkg):
 # --- thens -------------------------------------------------------------------
 
 
-@then("it succeeds")
-def succeeds(result):
-    assert result.returncode == 0, result.stdout + result.stderr
-
-
-@then("it fails")
-def fails(result):
-    assert result.returncode != 0, result.stdout + result.stderr
-
-
-@then(parsers.parse('it prints "{text}"'))
-def prints(result, text: str):
-    assert text in result.stdout, result.stdout + result.stderr
-
-
-@then(parsers.parse('stderr mentions "{text}"'))
-def mentions(result, text: str):
-    assert text in result.stderr, result.stderr
-
-
 @then(parsers.parse('the unreleased list holds "{category}" "{change}"'))
 def holds(pkg, category: str, change: str):
     assert {"category": category, "change": change} in pkg.unreleased()

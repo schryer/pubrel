@@ -5,8 +5,10 @@ throwaway git repository with a bare "remote", a real corpus and key made
 by a real released `pub`, and a fake `gh` that records what it was asked to
 do -- so nothing here touches GitHub, and nothing imports the Rust.
 
-Binaries are resolved from PUBREL_BIN_DIR (pubrel) and PUB_BIN_DIR (pub),
-so another implementation runs this suite by setting one variable.
+Binaries are resolved by pubkit's `binary` fixture, from PUBREL_BIN_DIR
+(pubrel) and PUB_BIN_DIR (pub), so another implementation runs this suite
+by setting one variable. The steps that judge a result (`it succeeds`, `it
+prints "..."`) are pubkit's too.
 """
 
 from __future__ import annotations
@@ -41,25 +43,17 @@ MANIFESTS = {
 }
 
 
-def bin_dir(var: str) -> Path:
-    raw = os.environ.get(var)
-    if not raw or not Path(raw).is_dir():
-        pytest.fail(f"{var} must name the directory holding the binary under test")
-    return Path(raw)
-
-
 class Package:
     """A package repository under test."""
 
-    def __init__(self, tmp: Path, kind: str, version: str):
+    def __init__(self, tmp: Path, kind: str, version: str, pubrel: Path, pub_dir: Path):
         self.tmp = tmp
         self.kind = kind
         self.remote = tmp / "remote.git"
         self.root = tmp / "work"
         self.fake = tmp / "fakebin"
         self.gh_log = tmp / "gh.log"
-        self.pubrel = bin_dir("PUBREL_BIN_DIR") / "pubrel"
-        pub_dir = bin_dir("PUB_BIN_DIR")
+        self.pubrel = pubrel
         self.env = dict(
             os.environ,
             PATH=f"{self.fake}{os.pathsep}{pub_dir}{os.pathsep}{os.environ['PATH']}",
@@ -158,7 +152,7 @@ class Package:
 
 
 @pytest.fixture
-def make_package(tmp_path: Path):
+def make_package(tmp_path: Path, binary):
     def make(kind: str, version: str) -> Package:
-        return Package(tmp_path, kind, version)
+        return Package(tmp_path, kind, version, binary("pubrel"), binary("pub").parent)
     return make
