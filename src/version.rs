@@ -7,6 +7,12 @@
 //! | `changed`, `removed`  | an already-published interface changed   | major |
 //! | `added`               | a new feature                            | minor |
 //! | `fixed`, `security`   | the same functionality                   | patch |
+//! | `internal`            | code changed, nothing users run did      | none  |
+//!
+//! An `internal` change -- a refactor, a crate moved -- satisfies `check`'s
+//! demand that a code change says what it changed, without claiming a fix
+//! or a feature that is not there. It never makes a release on its own; it
+//! is listed in the next release that something else makes.
 //!
 //! A package never released before is released at its current manifest
 //! version, raised to at least 0.1.0: that is the baseline later releases
@@ -15,7 +21,9 @@
 use std::fmt;
 
 /// The categories a change may be recorded under.
-pub const CATEGORIES: [&str; 5] = ["changed", "removed", "added", "fixed", "security"];
+pub const CATEGORIES: [&str; 6] = [
+    "changed", "removed", "added", "fixed", "security", "internal",
+];
 
 /// The lowest first release.
 const BASELINE: Version = Version {
@@ -88,6 +96,13 @@ pub fn next(
     if categories.is_empty() {
         return Err("nothing has changed, so there is nothing to release".to_owned());
     }
+    if categories.iter().all(|c| *c == "internal") {
+        return Err(
+            "only internal changes are recorded: nothing users run has changed, \
+             so there is nothing to release"
+                .to_owned(),
+        );
+    }
     let Some(previous) = previous else {
         return Ok(manifest.max(BASELINE));
     };
@@ -144,6 +159,16 @@ mod tests {
         assert_eq!(next(None, v("0.0.1"), &["added"]).unwrap(), v("0.1.0"));
         assert_eq!(next(None, v("0.1.0"), &["fixed"]).unwrap(), v("0.1.0"));
         assert_eq!(next(None, v("0.2.2"), &["changed"]).unwrap(), v("0.2.2"));
+    }
+
+    #[test]
+    fn internal_changes_never_bump_and_never_release_alone() {
+        let prev = Some(v("0.1.0"));
+        let m = v("0.1.0");
+        assert!(next(prev, m, &["internal"]).is_err());
+        assert!(next(None, m, &["internal", "internal"]).is_err());
+        assert_eq!(next(prev, m, &["internal", "fixed"]).unwrap(), v("0.1.1"));
+        assert_eq!(next(prev, m, &["added", "internal"]).unwrap(), v("0.2.0"));
     }
 
     #[test]

@@ -35,3 +35,9 @@ Feature: CI holds every change to the rules
     And I run pubrel check against main
     Then it fails
     And stderr mentions "states 0.3.0"
+
+  Scenario: An internal change satisfies check
+    When a branch changes "src/lib.rs" and records "internal" "move a module"
+    And I run pubrel check against main
+    Then it succeeds
+    And it prints "1 change(s) recorded"

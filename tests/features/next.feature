@@ -34,3 +34,17 @@ Feature: The version follows from what changed
     When I run pubrel next
     Then it fails
     And stderr mentions "nothing has changed"
+
+  Scenario: Internal changes alone release nothing
+    Given a cargo package released at version "0.1.0"
+    And the unreleased changes "internal"
+    When I run pubrel next
+    Then it fails
+    And stderr mentions "only internal changes are recorded"
+
+  Scenario: Internal changes ride along with a real one
+    Given a cargo package released at version "0.1.0"
+    And the unreleased changes "internal,fixed"
+    When I run pubrel next
+    Then it succeeds
+    And it prints "0.1.1"

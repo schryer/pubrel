@@ -28,7 +28,8 @@ const USAGE: &str = "\
 usage: pubrel <command> [--package NAME]
 
   init                    write release.json and an empty unreleased.json
-  add CATEGORY CHANGE...  record a change: changed, removed, added, fixed, security
+  add CATEGORY CHANGE...  record a change: changed, removed, added, fixed,
+                          security, or internal (no bump)
   next                    the version the unreleased changes imply
   check BASE              CI: a code change records what it changes; a release
                           is the bump its changes require, and published
