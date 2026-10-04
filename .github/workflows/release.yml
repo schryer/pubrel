@@ -1,0 +1,65 @@
+# The release workflow every package calls:
+#
+#   release:
+#     uses: schryer/pubrel/.github/workflows/release.yml@v0.1.0
+#     with: { pub-version: v0.1.1, pubrel-version: v0.1.0 }
+#
+# On a pull request, `pubrel check` holds the change to the rules: code
+# changes record what they change; a release is the bump its changes
+# require, and published. On main, `pubrel tag` tags and releases a
+# version the package publet records as released. Nothing here signs: a
+# release is signed when its package publet is published, locally.
+name: release
+
+on:
+  workflow_call:
+    inputs:
+      pub-version:
+        description: The publet tag to install pub from.
+        type: string
+        required: true
+      pubrel-version:
+        description: The pubrel tag to install pubrel from; empty builds it from this checkout.
+        type: string
+        default: ''
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+        with: { fetch-depth: 0 }
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cargo/bin/pub
+          key: pub-${{ inputs.pub-version }}
+      - name: Install pub ${{ inputs.pub-version }}
+        run: |
+          command -v pub >/dev/null && pub --version | grep -q "^pub ${INPUT_PUB#v}$" \
+            || cargo install --locked --git https://github.com/schryer/publet --tag "$INPUT_PUB" publet-cli
+          pub --version
+        env:
+          INPUT_PUB: ${{ inputs.pub-version }}
+      - name: Install pubrel
+        run: |
+          if [ -n "$INPUT_PUBREL" ]; then
+            cargo install --locked --git https://github.com/schryer/pubrel --tag "$INPUT_PUBREL" pubrel
+          else
+            cargo install --locked --path .
+          fi
+          pubrel --version
+        env:
+          INPUT_PUBREL: ${{ inputs.pubrel-version }}
+      - name: Check this change against the release rules
+        if: github.event_name == 'pull_request'
+        run: pubrel check "origin/${{ github.base_ref }}"
+      - name: Tag and release what main publishes
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          pubrel tag
+        env:
+          GH_TOKEN: ${{ github.token }}

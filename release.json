@@ -1,0 +1,10 @@
+{
+  "name": "pubrel",
+  "package": "pkg.pubrel",
+  "tag": "PKG-PUBREL-10-2026",
+  "corpus": "corpus",
+  "manifest": { "kind": "cargo-package", "path": "Cargo.toml" },
+  "code": ["src/", "Cargo.toml", "Cargo.lock", ".github/workflows/release.yml"],
+  "command": { "name": "pubrel", "check": "pubrel --version" },
+  "install": "cargo install --locked --git https://github.com/schryer/pubrel --tag {tag} pubrel"
+}

@@ -1,0 +1,17 @@
+{
+  "changes": [
+    {
+      "category": "added",
+      "change": "pubrel init, add, next, check, prepare, changelog, and tag: version a package by the categories of what changed and record each release as a version of its package publet."
+    },
+    {
+      "category": "added",
+      "change": "Manifest kinds cargo-workspace (with internal path dependencies), cargo-package, and pyproject."
+    },
+    {
+      "category": "added",
+      "change": "A reusable GitHub Actions workflow that checks pull requests against the release rules and tags published releases on main."
+    }
+  ],
+  "comment": "Changes not yet released. One row per change: category changed or removed (a published interface changed: major), added (a feature: minor), or fixed or security (patch). `pubrel add` appends one; `pubrel prepare` moves them into the package publet."
+}

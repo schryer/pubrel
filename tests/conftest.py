@@ -1,0 +1,164 @@
+"""Fixtures for pubrel's functional suite.
+
+Every scenario drives the built `pubrel` as a user would, against a
+throwaway git repository with a bare "remote", a real corpus and key made
+by a real released `pub`, and a fake `gh` that records what it was asked to
+do -- so nothing here touches GitHub, and nothing imports the Rust.
+
+Binaries are resolved from PUBREL_BIN_DIR (pubrel) and PUB_BIN_DIR (pub),
+so another implementation runs this suite by setting one variable.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import re
+import stat
+import subprocess
+from pathlib import Path
+
+import pytest
+
+GH = """#!/bin/sh
+printf '%s\\037' "$@" >> "$GH_LOG"
+printf '\\n' >> "$GH_LOG"
+echo "https://example.org/fake/1"
+"""
+
+MANIFESTS = {
+    "cargo": ("cargo-package", "Cargo.toml",
+              '[package]\nname = "demo"\nversion = "{v}"\nedition = "2024"\n',
+              ["src/", "Cargo.toml"], "src/lib.rs"),
+    "cargo-workspace": ("cargo-workspace", "Cargo.toml",
+                        '[workspace]\nmembers = ["crates/*"]\n\n[workspace.package]\n'
+                        'version = "{v}"\nedition = "2024"\n\n[workspace.dependencies]\n'
+                        'core = {{ path = "crates/core", version = "{v}" }}\n',
+                        ["crates/", "Cargo.toml"], "crates/core/src/lib.rs"),
+    "pyproject": ("pyproject", "pyproject.toml",
+                  '[project]\nname = "demo"\nversion = "{v}"\n',
+                  ["src/", "pyproject.toml"], "src/demo/__init__.py"),
+}
+
+
+def bin_dir(var: str) -> Path:
+    raw = os.environ.get(var)
+    if not raw or not Path(raw).is_dir():
+        pytest.fail(f"{var} must name the directory holding the binary under test")
+    return Path(raw)
+
+
+class Package:
+    """A package repository under test."""
+
+    def __init__(self, tmp: Path, kind: str, version: str):
+        self.tmp = tmp
+        self.kind = kind
+        self.remote = tmp / "remote.git"
+        self.root = tmp / "work"
+        self.fake = tmp / "fakebin"
+        self.gh_log = tmp / "gh.log"
+        self.pubrel = bin_dir("PUBREL_BIN_DIR") / "pubrel"
+        pub_dir = bin_dir("PUB_BIN_DIR")
+        self.env = dict(
+            os.environ,
+            PATH=f"{self.fake}{os.pathsep}{pub_dir}{os.pathsep}{os.environ['PATH']}",
+            GH_LOG=str(self.gh_log),
+            GIT_AUTHOR_NAME="Test", GIT_AUTHOR_EMAIL="test@example.org",
+            GIT_COMMITTER_NAME="Test", GIT_COMMITTER_EMAIL="test@example.org",
+        )
+        self.env.pop("PUB", None)
+        self.fake.mkdir()
+        gh = self.fake / "gh"
+        gh.write_text(GH)
+        gh.chmod(gh.stat().st_mode | stat.S_IEXEC)
+
+        manifest_kind, manifest, template, code, source = MANIFESTS[kind]
+        self.manifest = manifest
+        self.source = source
+        self.root.mkdir()
+        self.git("init", "-q", "-b", "main")
+        (self.root / manifest).write_text(template.format(v=version))
+        (self.root / source).parent.mkdir(parents=True, exist_ok=True)
+        (self.root / source).write_text("// demo\n")
+        (self.root / "release.json").write_text(json.dumps({
+            "name": "demo", "package": "pkg.demo", "tag": "PKG-DEMOPK-10-2026",
+            "corpus": "corpus", "manifest": {"kind": manifest_kind, "path": manifest},
+            "code": code,
+        }, indent=2))
+        (self.root / ".gitignore").write_text("/corpus/.publet/\n")
+        corpus = self.root / "corpus"
+        corpus.mkdir()
+        self.pub("corpus", "init", "--name=demo", cwd=corpus)
+        key = self.pub("sign", "--generate-key", "--principal=human", "--label=Test",
+                       cwd=corpus).stdout.split()[1]
+        self.pub("policy", f"--root={key}", cwd=corpus)
+        subprocess.run(["git", "init", "-q", "--bare", "-b", "main", str(self.remote)], check=True)
+        self.git("remote", "add", "origin", str(self.remote))
+        self.commit("initial")
+        self.git("push", "-q", "-u", "origin", "main")
+
+    # --- running things ---------------------------------------------------
+
+    def run(self, *argv: str, cwd: Path | None = None) -> subprocess.CompletedProcess:
+        return subprocess.run(list(argv), cwd=cwd or self.root, env=self.env,
+                              capture_output=True, text=True, check=False)
+
+    def ok(self, *argv: str, cwd: Path | None = None) -> subprocess.CompletedProcess:
+        proc = self.run(*argv, cwd=cwd)
+        assert proc.returncode == 0, f"{argv}: {proc.stdout}{proc.stderr}"
+        return proc
+
+    def git(self, *args: str) -> str:
+        return self.ok("git", *args).stdout.strip()
+
+    def pub(self, *args: str, cwd: Path | None = None):
+        return self.ok("pub", *args, cwd=cwd)
+
+    def pubrel_run(self, *args: str):
+        return self.run(str(self.pubrel), *args)
+
+    def commit(self, message: str):
+        self.git("add", "-A")
+        self.git("commit", "-q", "-m", message)
+
+    # --- shaping the history ---------------------------------------------
+
+    def add(self, category: str, change: str):
+        self.ok(str(self.pubrel), "add", category, change)
+
+    def release(self):
+        """Cut a release and merge it, as merging its PR would."""
+        self.ok(str(self.pubrel), "prepare", "--no-pr")
+        branch = self.git("rev-parse", "--abbrev-ref", "HEAD")
+        self.git("checkout", "-q", "main")
+        self.git("merge", "-q", "--ff-only", branch)
+        self.git("push", "-q", "origin", "main")
+
+    # --- reading back -----------------------------------------------------
+
+    def unreleased(self) -> list[dict]:
+        path = self.root / "corpus" / "publets" / "pkg.demo" / "unreleased.json"
+        return json.loads(path.read_text())["changes"] if path.exists() else []
+
+    def manifest_version(self) -> str:
+        text = (self.root / self.manifest).read_text()
+        return re.search(r'^version = "([^"]+)"', text, re.M).group(1)
+
+    def published(self, slug: str) -> dict:
+        lock = json.loads((self.root / "corpus" / "corpus.lock").read_text())
+        cid = next(r["cid"] for r in lock["publets"] if r["slug"] == slug)
+        path = self.root / "corpus" / "objects" / (cid.replace(":", "_") + ".cbor")
+        return json.loads(self.pub("read", "--json", str(path)).stdout)["object"]
+
+    def gh_calls(self) -> list[list[str]]:
+        if not self.gh_log.exists():
+            return []
+        return [line.split("\x1f")[:-1] for line in self.gh_log.read_text().splitlines()]
+
+
+@pytest.fixture
+def make_package(tmp_path: Path):
+    def make(kind: str, version: str) -> Package:
+        return Package(tmp_path, kind, version)
+    return make
