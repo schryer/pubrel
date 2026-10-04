@@ -92,9 +92,12 @@ Testing is split as in publet: Rust unit tests for invariants with no
 user-visible surface (the bump arithmetic, manifest editing); a Gherkin
 suite (`tests/features`) for every behaviour, driving the built binary
 against throwaway repositories with a real `pub` and a fake `gh`. Binaries
-are resolved from `PUBREL_BIN_DIR` and `PUB_BIN_DIR`. pubrel's own CI calls
-its own release workflow from the checkout, so it is held to the rules it
-provides.
+are resolved from `PUBREL_BIN_DIR` and `PUB_BIN_DIR`. The shared testing
+setup -- the plugin those fixtures and the common steps come from,
+`pubkit.mk`, the hash-locked pins, and the CI workflow -- is
+[pubkit](https://github.com/schryer/pubkit)'s; `make sync-check` fails if
+the managed copies drift. pubrel's own CI calls its own release workflow
+from the checkout, so it is held to the rules it provides.
 
 ## Licence
 
