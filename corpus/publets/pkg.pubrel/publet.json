@@ -2,7 +2,7 @@
   "claims": {
     "identity": {
       "class": "archival",
-      "content": "pubrel 0.1.0 is released as v0.1.0 from commit 16af33daa796d41f98bebba685f1012d6282c516.",
+      "content": "pubrel 0.2.0 is released as v0.2.0 from commit e3d0bcebc4bb3699602b6b2088014bf4bf72f942.",
       "data": {
         "columns": [
           {
@@ -27,25 +27,25 @@
         "rows": [
           [
             "pubrel",
-            "0.1.0",
+            "0.2.0",
             "pubrel --version",
-            "pubrel 0.1.0",
-            "v0.1.0",
-            "16af33daa796d41f98bebba685f1012d6282c516"
+            "pubrel 0.2.0",
+            "v0.2.0",
+            "e3d0bcebc4bb3699602b6b2088014bf4bf72f942"
           ]
         ]
       },
-      "scope": "the published release v0.1.0 of pubrel",
+      "scope": "the published release v0.2.0 of pubrel",
       "sources": [
         {
           "ref": "pubrel",
-          "revision": "16af33daa796d41f98bebba685f1012d6282c516"
+          "revision": "e3d0bcebc4bb3699602b6b2088014bf4bf72f942"
         }
       ]
     },
     "release": {
       "class": "archival",
-      "content": "pubrel 0.1.0 was released on 2026-10-04 from commit 16af33daa796d41f98bebba685f1012d6282c516 with these changes.",
+      "content": "pubrel 0.2.0 was released on 2026-10-04 from commit e3d0bcebc4bb3699602b6b2088014bf4bf72f942 with these changes.",
       "data": {
         "columns": [
           {
@@ -58,26 +58,22 @@
         "rows": [
           [
             "added",
-            "pubrel init, add, next, check, prepare, changelog, and tag: version a package by the categories of what changed and record each release as a version of its package publet."
+            "check and tag verify that the package publet's identity and release claims carry a valid signature by the key release.json names (`key`, which init now records), and that every object they read hashes to its identifier; without `key` they warn instead."
           ],
           [
             "added",
-            "Manifest kinds cargo-workspace (with internal path dependencies), cargo-package, and pyproject."
-          ],
-          [
-            "added",
-            "A reusable GitHub Actions workflow that checks pull requests against the release rules and tags published releases on main."
+            "next, check, tag and changelog read the package publet in-process with publet-core, so only prepare needs pub. release.yml no longer installs pub (its pub-version input is accepted and ignored) and caches the pubrel it installs by version."
           ]
         ]
       },
       "depends": [
         "#identity"
       ],
-      "scope": "the published release v0.1.0 of pubrel",
+      "scope": "the published release v0.2.0 of pubrel",
       "sources": [
         {
           "ref": "pubrel",
-          "revision": "16af33daa796d41f98bebba685f1012d6282c516"
+          "revision": "e3d0bcebc4bb3699602b6b2088014bf4bf72f942"
         }
       ]
     }
