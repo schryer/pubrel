@@ -1,4 +1,13 @@
 {
-  "changes": [],
+  "changes": [
+    {
+      "category": "added",
+      "change": "check and tag verify that the package publet's identity and release claims carry a valid signature by the key release.json names (`key`, which init now records), and that every object they read hashes to its identifier; without `key` they warn instead."
+    },
+    {
+      "category": "added",
+      "change": "next, check, tag and changelog read the package publet in-process with publet-core, so only prepare needs pub. release.yml no longer installs pub (its pub-version input is accepted and ignored) and caches the pubrel it installs by version."
+    }
+  ],
   "comment": "Changes not yet released. One row per change: category changed or removed (a published interface changed: major), added (a feature: minor), or fixed or security (patch). `pubrel add` appends one; `pubrel prepare` moves them into the package publet."
 }

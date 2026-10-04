@@ -87,10 +87,38 @@ class Package:
         key = self.pub("sign", "--generate-key", "--principal=human", "--label=Test",
                        cwd=corpus).stdout.split()[1]
         self.pub("policy", f"--root={key}", cwd=corpus)
+        # Releases must be signed by the corpus's author, as `pubrel init`
+        # records it.
+        config = json.loads((self.root / "release.json").read_text())
+        config["key"] = self.author()
+        (self.root / "release.json").write_text(json.dumps(config, indent=2))
         subprocess.run(["git", "init", "-q", "--bare", "-b", "main", str(self.remote)], check=True)
         self.git("remote", "add", "origin", str(self.remote))
         self.commit("initial")
         self.git("push", "-q", "-u", "origin", "main")
+
+    def author(self) -> str:
+        config = (self.root / "corpus" / ".publet" / "config").read_text()
+        return next(line.split("=", 1)[1] for line in config.splitlines()
+                    if line.startswith("author="))
+
+    def without_pub(self):
+        """Make `pub` unrunnable: a `pub` first on the PATH that fails, and
+        $PUB naming nothing."""
+        fake = self.fake / "pub"
+        fake.write_text("#!/bin/sh\necho 'pub is not available here' >&2\nexit 127\n")
+        fake.chmod(fake.stat().st_mode | stat.S_IEXEC)
+        self.env["PUB"] = str(self.tmp / "no-such-pub")
+
+    def objects(self) -> Path:
+        return self.root / "corpus" / "objects"
+
+    def locked(self, slug: str) -> str:
+        lock = json.loads((self.root / "corpus" / "corpus.lock").read_text())
+        return next(r["cid"] for r in lock["publets"] if r["slug"] == slug)
+
+    def object_file(self, cid: str) -> Path:
+        return self.objects() / f"{cid.replace(':', '_')}.cbor"
 
     # --- running things ---------------------------------------------------
 

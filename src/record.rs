@@ -1,9 +1,9 @@
 //! The release record: a package's `release.json`, its unreleased changes,
 //! and the package publet its releases are versions of.
 //!
-//! Everything that touches publets goes through the installed `pub`, which
-//! must be a released 0.x (`^0.1`): building, publishing, and reading the
-//! package publet back are `pub`'s to do, not this tool's.
+//! Building and publishing the package publet -- which signs it -- go
+//! through the installed `pub`, a released 0.x (`^0.1`). Reading it back is
+//! done here, with `publet-core` (see `published`).
 
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -32,6 +32,8 @@ pub struct Config {
     pub command: Option<(String, String)>,
     /// How to install a release; `{tag}` is substituted.
     pub install: Option<String>,
+    /// The key object a release must be signed by: the corpus's author.
+    pub key: Option<String>,
 }
 
 impl Config {
@@ -92,6 +94,7 @@ impl Config {
                 .unwrap_or_default(),
             command,
             install: text("install"),
+            key: text("key"),
         })
     }
 
@@ -303,22 +306,7 @@ pub fn run_pub(dir: &Path, args: &[&str]) -> Result<String, String> {
     }
 }
 
-/// A published object, decoded by `pub read --json`.
-///
-/// # Errors
-///
-/// Returns a message if it is not held or cannot be read.
-pub fn read_object(cfg: &Config, cid: &str) -> Result<Value, String> {
-    let path = cfg
-        .corpus_dir()
-        .join("objects")
-        .join(format!("{}.cbor", cid.replace(':', "_")));
-    let out = run_pub(&cfg.root, &["read", "--json", &path.to_string_lossy()])?;
-    let json: Value = serde_json::from_str(&out).map_err(|e| e.to_string())?;
-    json.get("object")
-        .cloned()
-        .ok_or_else(|| "pub read gave no object".to_owned())
-}
+pub use crate::published::read_object;
 
 /// The identifier a lock records for `slug`.
 #[must_use]
