@@ -46,8 +46,15 @@ Merging it is the release: CI tags it.
   "manifest": { "kind": "cargo-workspace", "path": "Cargo.toml" },
   "code": ["crates/", "bin/", "porcelain/", "Cargo.toml", "Cargo.lock"],
   "command": { "name": "pub", "check": "pub --version" },
-  "install": "cargo install --locked --git https://github.com/schryer/publet --tag {tag} publet-cli" }
+  "install": "cargo install --locked --git https://github.com/schryer/publet --tag {tag} publet-cli",
+  "key": "pub:sha2-256:m2smuezcqpjeyy6iofa2pjl47lgbwu254hohndyhs2do34fcrcma" }
 ```
+
+`key` is the key a release must be signed by: the corpus's author, which
+`pubrel init` records. `check` and `tag` verify that the package publet's
+`identity` and `release` claims carry a valid signature by it, and that every
+object they read hashes to its identifier; without `key` they warn and do
+not check signatures.
 
 Manifest kinds: `cargo-workspace` (the workspace version and every internal
 path dependency pinned at it), `cargo-package`, and `pyproject`. `command`
@@ -59,8 +66,8 @@ Every package calls the same workflow:
 
 ```yaml
 release:
-  uses: schryer/pubrel/.github/workflows/release.yml@v0.1.0
-  with: { pub-version: v0.1.1, pubrel-version: v0.1.0 }
+  uses: schryer/pubrel/.github/workflows/release.yml@vX.Y.Z
+  with: { pubrel-version: vX.Y.Z }
   permissions: { contents: write }
 ```
 
@@ -72,13 +79,16 @@ when its package publet is published, by whoever cut it.
 
 ## Requirements
 
-`pubrel` drives a released `pub` (^0.1) for everything that touches
-publets -- building, publishing, and reading the package publet back -- and
-`git` and `gh` for the rest. Install:
+Cutting a release (`pubrel prepare`) drives a released `pub` (^0.1) to
+build and publish the package publet, which signs it; that happens on the
+machine of whoever cuts it. Everything else -- `next`, `check`, `tag`,
+`changelog` -- reads the package publet and verifies its signatures itself,
+with [`publet-core`](https://github.com/schryer/publet/tree/main/crates/publet-core),
+so CI needs only `pubrel`, plus `git` and `gh`. Install:
 
 ```sh
-cargo install --locked --git https://github.com/schryer/publet --tag v0.1.1 publet-cli
-cargo install --locked --git https://github.com/schryer/pubrel --tag v0.1.0 pubrel
+cargo install --locked --git https://github.com/schryer/publet --tag v0.1.1 publet-cli   # to cut releases
+cargo install --locked --git https://github.com/schryer/pubrel --tag vX.Y.Z pubrel
 ```
 
 ## Developing

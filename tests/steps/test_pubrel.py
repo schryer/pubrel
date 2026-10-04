@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+
 from pytest_bdd import given, parsers, scenarios, then, when
 
 scenarios("../features/add.feature")
@@ -10,6 +12,7 @@ scenarios("../features/check.feature")
 scenarios("../features/prepare.feature")
 scenarios("../features/tag.feature")
 scenarios("../features/changelog.feature")
+scenarios("../features/verify.feature")
 
 
 # --- givens ------------------------------------------------------------------
@@ -123,6 +126,51 @@ def set_manifest(pkg, version: str):
                                     f'version = "{version}"', 1)
     path.write_text(text)
     pkg.commit("tamper with the version")
+
+
+@when("pub is not available")
+def no_pub(pkg):
+    pkg.without_pub()
+
+
+@when("the release's signatures are removed")
+def unsign(pkg):
+    """Delete every signature over the package publet's claims."""
+    targets = {pkg.locked(f"pkg.demo#{part}") for part in ("identity", "release")}
+    for path in pkg.objects().glob("*.cbor"):
+        obj = json.loads(pkg.pub("read", "--json", str(path)).stdout)["object"]
+        if obj["type"] == "sig" and obj["body"]["target"] in targets:
+            path.unlink()
+    pkg.commit("remove the release's signatures")
+
+
+@when("release.json names the identity claim as its key")
+def wrong_key(pkg):
+    path = pkg.root / "release.json"
+    config = json.loads(path.read_text())
+    config["key"] = pkg.locked("pkg.demo#identity")
+    path.write_text(json.dumps(config, indent=2))
+    pkg.commit("name the wrong key")
+
+
+@when("release.json names no key")
+def no_key(pkg):
+    path = pkg.root / "release.json"
+    config = json.loads(path.read_text())
+    del config["key"]
+    path.write_text(json.dumps(config, indent=2))
+    pkg.commit("name no key")
+
+
+@when("the published identity claim is altered")
+def alter(pkg):
+    # Same length, so the bytes stay canonical CBOR and only the identifier
+    # gives the alteration away.
+    path = pkg.object_file(pkg.locked("pkg.demo#identity"))
+    data = path.read_bytes()
+    assert b"0.2.0" in data
+    path.write_bytes(data.replace(b"0.2.0", b"0.2.1"))
+    pkg.commit("alter the published identity")
 
 
 @when("I run pubrel check against main", target_fixture="result")

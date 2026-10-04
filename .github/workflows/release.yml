@@ -1,23 +1,25 @@
 # The release workflow every package calls:
 #
 #   release:
-#     uses: schryer/pubrel/.github/workflows/release.yml@v0.1.0
-#     with: { pub-version: v0.1.1, pubrel-version: v0.1.0 }
+#     uses: schryer/pubrel/.github/workflows/release.yml@vX.Y.Z
+#     with: { pubrel-version: vX.Y.Z }
 #
 # On a pull request, `pubrel check` holds the change to the rules: code
 # changes record what they change; a release is the bump its changes
 # require, and published. On main, `pubrel tag` tags and releases a
-# version the package publet records as released. Nothing here signs: a
-# release is signed when its package publet is published, locally.
+# version the package publet records as released. Both read the package
+# publet and verify its signatures in-process, so no `pub` is installed.
+# Nothing here signs: a release is signed when its package publet is
+# published, locally.
 name: release
 
 on:
   workflow_call:
     inputs:
       pub-version:
-        description: The publet tag to install pub from.
+        description: Ignored; kept so callers that still pass it keep working. pubrel no longer needs pub in CI.
         type: string
-        required: true
+        default: ''
       pubrel-version:
         description: The pubrel tag to install pubrel from; empty builds it from this checkout.
         type: string
@@ -31,21 +33,16 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with: { fetch-depth: 0 }
-      - uses: actions/cache@v4
+      - if: inputs.pubrel-version != ''
+        uses: actions/cache@v4
         with:
-          path: ~/.cargo/bin/pub
-          key: pub-${{ inputs.pub-version }}
-      - name: Install pub ${{ inputs.pub-version }}
-        run: |
-          command -v pub >/dev/null && pub --version | grep -q "^pub ${INPUT_PUB#v}$" \
-            || cargo install --locked --git https://github.com/schryer/publet --tag "$INPUT_PUB" publet-cli
-          pub --version
-        env:
-          INPUT_PUB: ${{ inputs.pub-version }}
+          path: ~/.cargo/bin/pubrel
+          key: pubrel-${{ inputs.pubrel-version }}-${{ runner.os }}
       - name: Install pubrel
         run: |
           if [ -n "$INPUT_PUBREL" ]; then
-            cargo install --locked --git https://github.com/schryer/pubrel --tag "$INPUT_PUBREL" pubrel
+            command -v pubrel >/dev/null && pubrel --version | grep -q "^pubrel ${INPUT_PUBREL#v}$" \
+              || cargo install --locked --git https://github.com/schryer/pubrel --tag "$INPUT_PUBREL" pubrel
           else
             cargo install --locked --path .
           fi

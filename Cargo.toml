@@ -12,6 +12,9 @@ name = "pubrel"
 path = "src/main.rs"
 
 [dependencies]
+# Canonical CBOR, content identifiers and Ed25519: enough to read the
+# package publet back and check its signature, without the `pub` binary.
+publet-core = { git = "https://github.com/schryer/publet", tag = "v0.1.1" }
 serde_json = "1"
 toml_edit = "0.22"
 

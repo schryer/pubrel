@@ -12,6 +12,7 @@
 //! judgement at release time (see [`version`]).
 
 mod manifest;
+mod published;
 mod record;
 mod version;
 
@@ -128,7 +129,7 @@ fn init() -> Result<(), String> {
     } else {
         ("cargo-package", "Cargo.toml")
     };
-    let json = serde_json::json!({
+    let mut json = serde_json::json!({
         "name": name,
         "package": format!("pkg.{name}"),
         "tag": "PKG-CHANGE-01-2026",
@@ -136,6 +137,16 @@ fn init() -> Result<(), String> {
         "manifest": {"kind": kind, "path": manifest},
         "code": ["src/", manifest],
     });
+    // The key releases must be signed by: the corpus's author, if it has one.
+    let author = std::fs::read_to_string(root.join("corpus/.publet/config"))
+        .ok()
+        .and_then(|c| {
+            c.lines()
+                .find_map(|l| l.strip_prefix("author=").map(str::to_owned))
+        });
+    if let Some(author) = author {
+        json["key"] = serde_json::Value::String(author);
+    }
     std::fs::write(
         &path,
         serde_json::to_string_pretty(&json).map_err(|e| e.to_string())? + "\n",
@@ -182,7 +193,6 @@ fn add(args: &[String]) -> Result<(), String> {
 
 fn next() -> Result<(), String> {
     let cfg = config()?;
-    record::require_pub()?;
     let previous = record::published_version(&cfg, lock_text(&cfg).as_deref())?;
     let rows = unreleased(&cfg)?;
     println!(
@@ -213,9 +223,14 @@ fn check(base: &str) -> Result<(), String> {
     let now_lock = lock_text(&cfg);
     let now_identity = record::locked(now_lock.as_deref(), &format!("{}#identity", cfg.package));
     if now_identity != base_identity {
-        // A release: published here, so it must be exactly the bump its
-        // changes require, and the manifest must say so.
-        record::require_pub()?;
+        // A release: published here, so it must be signed by the package's
+        // key, exactly the bump its changes require, and the manifest must
+        // say so.
+        for part in ["identity", "release"] {
+            let cid = record::locked(now_lock.as_deref(), &format!("{}#{part}", cfg.package))
+                .ok_or_else(|| format!("the lock records no {}#{part}", cfg.package))?;
+            published::require_signed(&cfg, &cid)?;
+        }
         let previous = record::published_version(&cfg, base_lock.as_deref())?;
         let published = record::published_version(&cfg, now_lock.as_deref())?
             .ok_or("the package identity is recorded but states no version")?;
@@ -401,7 +416,6 @@ fn tag() -> Result<(), String> {
         println!("{tag} already exists; nothing to do");
         return Ok(());
     }
-    record::require_pub()?;
     let lock = lock_text(&cfg);
     if record::published_version(&cfg, lock.as_deref())? != Some(version) {
         println!(
@@ -414,6 +428,8 @@ fn tag() -> Result<(), String> {
         record::locked(lock.as_deref(), &format!("{}#identity", cfg.package)).unwrap_or_default();
     let release =
         record::locked(lock.as_deref(), &format!("{}#release", cfg.package)).unwrap_or_default();
+    published::require_signed(&cfg, &identity)?;
+    published::require_signed(&cfg, &release)?;
     let annotation = format!(
         "{} {version}\n\npackage {} [{}]\nidentity {identity}\nrelease  {release}",
         cfg.name, cfg.package, cfg.tag
