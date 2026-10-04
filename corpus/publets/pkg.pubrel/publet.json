@@ -2,7 +2,7 @@
   "claims": {
     "identity": {
       "class": "archival",
-      "content": "pubrel 0.2.0 is released as v0.2.0 from commit e3d0bcebc4bb3699602b6b2088014bf4bf72f942.",
+      "content": "pubrel 0.3.0 is released as v0.3.0 from commit 6173ec3e3a909c43908b3f42e90218975b5dad96.",
       "data": {
         "columns": [
           {
@@ -27,25 +27,25 @@
         "rows": [
           [
             "pubrel",
-            "0.2.0",
+            "0.3.0",
             "pubrel --version",
-            "pubrel 0.2.0",
-            "v0.2.0",
-            "e3d0bcebc4bb3699602b6b2088014bf4bf72f942"
+            "pubrel 0.3.0",
+            "v0.3.0",
+            "6173ec3e3a909c43908b3f42e90218975b5dad96"
           ]
         ]
       },
-      "scope": "the published release v0.2.0 of pubrel",
+      "scope": "the published release v0.3.0 of pubrel",
       "sources": [
         {
           "ref": "pubrel",
-          "revision": "e3d0bcebc4bb3699602b6b2088014bf4bf72f942"
+          "revision": "6173ec3e3a909c43908b3f42e90218975b5dad96"
         }
       ]
     },
     "release": {
       "class": "archival",
-      "content": "pubrel 0.2.0 was released on 2026-10-04 from commit e3d0bcebc4bb3699602b6b2088014bf4bf72f942 with these changes.",
+      "content": "pubrel 0.3.0 was released on 2026-10-04 from commit 6173ec3e3a909c43908b3f42e90218975b5dad96 with these changes.",
       "data": {
         "columns": [
           {
@@ -58,22 +58,22 @@
         "rows": [
           [
             "added",
-            "check and tag verify that the package publet's identity and release claims carry a valid signature by the key release.json names (`key`, which init now records), and that every object they read hashes to its identifier; without `key` they warn instead."
+            "release.json may list several `packages` -- a workspace and crates in it released with versions of their own -- each with its own unreleased list, package publet, changelog and tag prefix (`publet-core-v0.1.1`). add, next and prepare take --package; check, changelog and tag act on every package. A workspace bump leaves the pins of independently versioned crates alone, and their own releases pin their new versions in the workspace."
           ],
           [
             "added",
-            "next, check, tag and changelog read the package publet in-process with publet-core, so only prepare needs pub. release.yml no longer installs pub (its pub-version input is accepted and ignored) and caches the pubrel it installs by version."
+            "A sixth change category, `internal`: a code change nothing users run sees (a refactor, a crate moved). It satisfies check, never bumps the version, and is listed in the next release something else makes."
           ]
         ]
       },
       "depends": [
         "#identity"
       ],
-      "scope": "the published release v0.2.0 of pubrel",
+      "scope": "the published release v0.3.0 of pubrel",
       "sources": [
         {
           "ref": "pubrel",
-          "revision": "e3d0bcebc4bb3699602b6b2088014bf4bf72f942"
+          "revision": "6173ec3e3a909c43908b3f42e90218975b5dad96"
         }
       ]
     }
