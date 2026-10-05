@@ -93,6 +93,31 @@ Manifest kinds: `cargo-workspace` (the workspace version and every internal
 path dependency pinned at it), `cargo-package`, and `pyproject`. `command`
 is optional; a library has none.
 
+## Security checks
+
+`release.json` may declare checks a release must pass, and facts to keep
+beside them:
+
+```json
+"security": {
+  "checks": [
+    { "name": "advisories", "run": "cargo deny --locked check", "version": "cargo deny --version" },
+    { "name": "supply chain", "run": "cargo vet --locked", "version": "cargo vet --version" }
+  ],
+  "facts": [
+    { "name": "RustSec advisory database", "run": "git -C \"$(ls -d ~/.cargo/advisory-dbs/*/ | head -1)\" rev-parse HEAD" }
+  ]
+}
+```
+
+`pubrel prepare` runs every check before it changes anything, and cuts no
+release if one fails. It records what ran in a `security` claim in the
+package publet: each check's command, its tool and version, and the last
+line the tool printed, beside each fact's value. The claim is signed with
+the release, the changelog and the GitHub release list it, and `check` and
+`tag` refuse a release whose record is missing or unsigned. What was
+checked for a version is as verifiable as the version itself.
+
 ## CI
 
 Every package calls the same workflow:

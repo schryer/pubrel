@@ -1,4 +1,9 @@
 {
-  "changes": [],
+  "changes": [
+    {
+      "category": "added",
+      "change": "release.json may declare security checks and facts. prepare runs the checks before releasing, refuses to release if one fails, and records each check's command, tool version and summary, and each fact, as a security claim signed with the release; the changelog and release notes list it, and check and tag refuse a release whose declared record is missing or unsigned."
+    }
+  ],
   "comment": "Changes not yet released. One row per change: category changed or removed (a published interface changed: major), added (a feature: minor), or fixed or security (patch). `pubrel add` appends one; `pubrel prepare` moves them into the package publet."
 }
