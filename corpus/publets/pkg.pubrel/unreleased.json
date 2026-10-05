@@ -1,9 +1,4 @@
 {
-  "changes": [
-    {
-      "category": "changed",
-      "change": "Versions follow Cargo's convention below 1.0.0: changed or removed bumps the minor version (0.3.1 to 0.4.0), and added, fixed or security bumps the patch version. From 1.0.0 the rules are as before. Versions are semver::Version, parsed strictly (no pre-release or build suffix), and the pub this drives must satisfy ^0.1 as Cargo reads it (at least 0.1.0, below 0.2.0)."
-    }
-  ],
+  "changes": [],
   "comment": "Changes not yet released. One row per change: category changed or removed (a published interface changed: major), added (a feature: minor), or fixed or security (patch). `pubrel add` appends one; `pubrel prepare` moves them into the package publet."
 }

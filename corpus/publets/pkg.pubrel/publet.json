@@ -2,7 +2,7 @@
   "claims": {
     "identity": {
       "class": "archival",
-      "content": "pubrel 0.3.0 is released as v0.3.0 from commit 6173ec3e3a909c43908b3f42e90218975b5dad96.",
+      "content": "pubrel 0.4.0 is released as v0.4.0 from commit 3997cb69934e77f31527329032ba91af9257696a.",
       "data": {
         "columns": [
           {
@@ -27,25 +27,25 @@
         "rows": [
           [
             "pubrel",
-            "0.3.0",
+            "0.4.0",
             "pubrel --version",
-            "pubrel 0.3.0",
-            "v0.3.0",
-            "6173ec3e3a909c43908b3f42e90218975b5dad96"
+            "pubrel 0.4.0",
+            "v0.4.0",
+            "3997cb69934e77f31527329032ba91af9257696a"
           ]
         ]
       },
-      "scope": "the published release v0.3.0 of pubrel",
+      "scope": "the published release v0.4.0 of pubrel",
       "sources": [
         {
           "ref": "pubrel",
-          "revision": "6173ec3e3a909c43908b3f42e90218975b5dad96"
+          "revision": "3997cb69934e77f31527329032ba91af9257696a"
         }
       ]
     },
     "release": {
       "class": "archival",
-      "content": "pubrel 0.3.0 was released on 2026-10-04 from commit 6173ec3e3a909c43908b3f42e90218975b5dad96 with these changes.",
+      "content": "pubrel 0.4.0 was released on 2026-10-05 from commit 3997cb69934e77f31527329032ba91af9257696a with these changes.",
       "data": {
         "columns": [
           {
@@ -57,28 +57,24 @@
         ],
         "rows": [
           [
-            "added",
-            "release.json may list several `packages` -- a workspace and crates in it released with versions of their own -- each with its own unreleased list, package publet, changelog and tag prefix (`publet-core-v0.1.1`). add, next and prepare take --package; check, changelog and tag act on every package. A workspace bump leaves the pins of independently versioned crates alone, and their own releases pin their new versions in the workspace."
-          ],
-          [
-            "added",
-            "A sixth change category, `internal`: a code change nothing users run sees (a refactor, a crate moved). It satisfies check, never bumps the version, and is listed in the next release something else makes."
+            "changed",
+            "Versions follow Cargo's convention below 1.0.0: changed or removed bumps the minor version (0.3.1 to 0.4.0), and added, fixed or security bumps the patch version. From 1.0.0 the rules are as before. Versions are semver::Version, parsed strictly (no pre-release or build suffix), and the pub this drives must satisfy ^0.1 as Cargo reads it (at least 0.1.0, below 0.2.0)."
           ]
         ]
       },
       "depends": [
         "#identity"
       ],
-      "scope": "the published release v0.3.0 of pubrel",
+      "scope": "the published release v0.4.0 of pubrel",
       "sources": [
         {
           "ref": "pubrel",
-          "revision": "6173ec3e3a909c43908b3f42e90218975b5dad96"
+          "revision": "3997cb69934e77f31527329032ba91af9257696a"
         }
       ]
     }
   },
-  "created": "2026-10-04T00:00:00Z",
+  "created": "2026-10-05T00:00:00Z",
   "sections": [
     {
       "heading": "Identity",
