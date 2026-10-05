@@ -44,6 +44,8 @@ pub struct Config {
     pub key: Option<String>,
     /// The generated changelog, relative to the root.
     pub changelog: PathBuf,
+    /// The security checks a release must pass, recorded in it.
+    pub security: crate::security::Declared,
 }
 
 impl Config {
@@ -158,6 +160,9 @@ impl Config {
             install: text("install"),
             key: shared("key"),
             changelog,
+            security: crate::security::Declared::from_json(
+                json.get("security").or_else(|| top.get("security")),
+            )?,
         })
     }
 
@@ -294,6 +299,7 @@ pub fn package_source(
     date: &str,
     commit: &str,
     rows: &[Change],
+    security: &[crate::security::Row],
 ) -> Value {
     let tag = cfg.git_tag(version);
     let (name, check, expect) = match &cfg.command {
@@ -303,7 +309,7 @@ pub fn package_source(
     let scope = format!("the published release {tag} of {}", cfg.name);
     let columns =
         |names: &[&str]| -> Vec<Value> { names.iter().map(|n| json!({"name": n})).collect() };
-    json!({
+    let mut source = json!({
         "slug": cfg.package, "tag": cfg.tag, "created": format!("{date}T00:00:00Z"),
         "title": cfg.name,
         "claims": {
@@ -327,7 +333,26 @@ pub fn package_source(
             {"heading": "Identity", "items": [{"ref": "#identity"}]},
             {"heading": "Release", "items": [{"ref": "#release"}]},
         ],
-    })
+    });
+    if !security.is_empty() {
+        source["claims"]["security"] = json!({
+            "class": "archival", "scope": scope,
+            "content": format!(
+                "{} {version} passed these security checks before release on {date}.",
+                cfg.name
+            ),
+            "depends": ["#identity"],
+            "data": {"columns": columns(&["kind", "name", "command", "tool", "result"]),
+                     "rows": security.iter()
+                        .map(|r| json!([r.kind, r.name, r.command, r.tool, r.result]))
+                        .collect::<Vec<_>>()},
+            "sources": [{"ref": cfg.name, "revision": commit}],
+        });
+        if let Some(sections) = source["sections"].as_array_mut() {
+            sections.push(json!({"heading": "Security", "items": [{"ref": "#security"}]}));
+        }
+    }
+    source
 }
 
 // --- pub --------------------------------------------------------------------
@@ -435,6 +460,8 @@ pub struct Release {
     pub commit: String,
     pub cid: String,
     pub rows: Vec<(String, String)>,
+    /// The security record, if the release has one.
+    pub security: Vec<crate::security::Row>,
 }
 
 /// Every published release of the package, newest first: the `release`
@@ -443,6 +470,7 @@ pub struct Release {
 pub fn releases(cfg: &Config) -> Vec<Release> {
     let prefix = format!("{} ", cfg.name);
     let mut out = Vec::new();
+    let mut security: Vec<(Version, Vec<crate::security::Row>)> = Vec::new();
     let dir = cfg.corpus_dir().join("objects");
     let Ok(entries) = std::fs::read_dir(&dir) else {
         return out;
@@ -466,8 +494,15 @@ pub fn releases(cfg: &Config) -> Vec<Release> {
         let Some(rest) = content.strip_prefix(&prefix) else {
             continue;
         };
-        // "<version> was released on <date> from commit <sha> with these changes."
         let words: Vec<&str> = rest.split_whitespace().collect();
+        // "<version> passed these security checks before release on <date>."
+        if let (Some(v), Some(&"passed")) = (words.first(), words.get(1)) {
+            if let Ok(version) = version::parse(v) {
+                security.push((version, security_rows(&object)));
+            }
+            continue;
+        }
+        // "<version> was released on <date> from commit <sha> with these changes."
         let (Some(v), Some(&"was"), Some(date), Some(commit)) =
             (words.first(), words.get(1), words.get(4), words.get(7))
         else {
@@ -494,10 +529,36 @@ pub fn releases(cfg: &Config) -> Vec<Release> {
             commit: (*commit).to_owned(),
             cid,
             rows,
+            security: Vec::new(),
         });
+    }
+    for release in &mut out {
+        if let Some((_, rows)) = security.iter().find(|(v, _)| *v == release.version) {
+            release.security.clone_from(rows);
+        }
     }
     out.sort_by(|a, b| b.version.cmp(&a.version));
     out
+}
+
+/// A security claim's rows: kind, name, command, tool, result.
+fn security_rows(object: &Value) -> Vec<crate::security::Row> {
+    object
+        .pointer("/body/data/rows")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(|r| {
+            let cell = |i: usize| r.get(i).and_then(Value::as_str).map(str::to_owned);
+            Some(crate::security::Row {
+                kind: cell(0)?,
+                name: cell(1)?,
+                command: cell(2)?,
+                tool: cell(3)?,
+                result: cell(4)?,
+            })
+        })
+        .collect()
 }
 
 /// One release as a changelog section.
@@ -528,6 +589,23 @@ pub fn section(r: &Release) -> String {
         let _ = writeln!(out, "### {title}");
         for e in entries {
             let _ = writeln!(out, "- {e}");
+        }
+        out.push('\n');
+    }
+    if !r.security.is_empty() {
+        let _ = writeln!(out, "### Security checks");
+        for row in &r.security {
+            if row.kind == "fact" {
+                let _ = writeln!(out, "- {}: `{}`", row.name, row.result);
+            } else if row.tool.is_empty() {
+                let _ = writeln!(out, "- {}: `{}` -- {}", row.name, row.command, row.result);
+            } else {
+                let _ = writeln!(
+                    out,
+                    "- {}: `{}` ({}) -- {}",
+                    row.name, row.command, row.tool, row.result
+                );
+            }
         }
         out.push('\n');
     }

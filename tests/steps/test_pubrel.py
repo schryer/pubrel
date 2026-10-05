@@ -14,6 +14,7 @@ scenarios("../features/tag.feature")
 scenarios("../features/changelog.feature")
 scenarios("../features/verify.feature")
 scenarios("../features/multi.feature")
+scenarios("../features/security.feature")
 
 
 # --- givens ------------------------------------------------------------------
@@ -339,3 +340,67 @@ def changelog_names(pkg, path: str, slug: str):
     text = (pkg.root / path).read_text()
     assert f"package publet `{slug}`" in text, text
     assert "## 0.1.0" in text, text
+
+
+# --- security checks ---------------------------------------------------------
+
+
+def declare(pkg, kind: str, entry: dict, push: bool = True):
+    path = pkg.root / "release.json"
+    config = json.loads(path.read_text())
+    config.setdefault("security", {}).setdefault(kind, []).append(entry)
+    path.write_text(json.dumps(config, indent=2))
+    pkg.commit(f"declare a security {kind[:-1]}")
+    if push:
+        pkg.git("push", "-q", "origin", "main")
+
+
+@given(parsers.parse('release.json declares the security check "{name}" that prints "{line}" with tool "{tool}"'))
+def check_prints(pkg, name: str, line: str, tool: str):
+    declare(pkg, "checks", {"name": name, "run": f"printf 'checking\\n{line}\\n'",
+                            "version": f"echo '{tool}'"})
+
+
+@given(parsers.parse('release.json declares the security check "{name}" that fails'))
+def check_fails(pkg, name: str):
+    declare(pkg, "checks", {"name": name,
+                            "run": "echo 'error[vulnerability]: RUSTSEC-0000-0000' >&2; exit 1"})
+
+
+@given(parsers.parse('release.json declares the security fact "{name}" that prints "{value}"'))
+def fact_prints(pkg, name: str, value: str):
+    declare(pkg, "facts", {"name": name, "run": f"echo '{value}'"})
+
+
+@when(parsers.parse('release.json now declares the security check "{name}" that prints "{line}" with tool "{tool}"'))
+def check_declared_late(pkg, name: str, line: str, tool: str):
+    # On the release branch, after the release was cut without it.
+    declare(pkg, "checks", {"name": name, "run": f"printf '{line}\\n'",
+                            "version": f"echo '{tool}'"}, push=False)
+
+
+@when("the security record's signatures are removed")
+def unsign_security(pkg):
+    target = pkg.locked("pkg.demo#security")
+    for path in pkg.objects().glob("*.cbor"):
+        obj = json.loads(pkg.pub("read", "--json", str(path)).stdout)["object"]
+        if obj["type"] == "sig" and obj["body"]["target"] == target:
+            path.unlink()
+    pkg.commit("remove the security record's signatures")
+
+
+def security_rows(pkg) -> list[list[str]]:
+    return pkg.published("pkg.demo#security")["body"]["data"]["rows"]
+
+
+@then(parsers.parse('the published security record lists the check "{name}" with "{result}" from "{tool}"'))
+def records_check(pkg, name: str, result: str, tool: str):
+    rows = security_rows(pkg)
+    assert any(r[0] == "check" and r[1] == name and r[3] == tool and r[4] == result
+               for r in rows), rows
+
+
+@then(parsers.parse('the published security record lists the fact "{name}" as "{value}"'))
+def records_fact(pkg, name: str, value: str):
+    rows = security_rows(pkg)
+    assert any(r[0] == "fact" and r[1] == name and r[4] == value for r in rows), rows

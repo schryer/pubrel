@@ -14,6 +14,7 @@
 mod manifest;
 mod published;
 mod record;
+mod security;
 mod version;
 
 use std::fmt::Write as _;
@@ -329,6 +330,29 @@ fn check(base: &str) -> Result<(), String> {
     }
 }
 
+/// The claims a release of `cfg` must carry, signed: its identity, its
+/// changes, and -- when release.json declares security checks -- the record
+/// of them.
+fn record_parts(cfg: &Config) -> Vec<&'static str> {
+    let mut parts = vec!["identity", "release"];
+    if !cfg.security.is_empty() {
+        parts.push("security");
+    }
+    parts
+}
+
+fn missing_part(cfg: &Config, part: &str) -> String {
+    if part == "security" {
+        format!(
+            "release.json declares security checks, but the release of {} records none; \
+             cut it with `pubrel prepare`, which runs them",
+            cfg.name
+        )
+    } else {
+        format!("the lock records no {}#{part}", cfg.package)
+    }
+}
+
 /// If this branch releases `cfg`, check the release and return its version:
 /// signed by the package's key, exactly the bump its changes require, with
 /// the manifest saying so and nothing left unreleased.
@@ -341,9 +365,9 @@ fn check_release(cfg: &Config, base: &str) -> Result<Option<Version>, String> {
     if now_identity == base_identity {
         return Ok(None);
     }
-    for part in ["identity", "release"] {
+    for part in record_parts(cfg) {
         let cid = record::locked(now_lock.as_deref(), &format!("{}#{part}", cfg.package))
-            .ok_or_else(|| format!("the lock records no {}#{part}", cfg.package))?;
+            .ok_or_else(|| missing_part(cfg, part))?;
         published::require_signed(cfg, &cid)?;
     }
     let previous = record::published_version(cfg, base_lock.as_deref())?;
@@ -413,6 +437,9 @@ fn prepare(open_pr: bool, package: Option<&str>) -> Result<(), String> {
         cfg.manifest_version()?,
         &categories(&rows),
     )?;
+    // The checks run on the tree being released, before anything changes:
+    // a release is cut only when they pass.
+    let security = security::run(&cfg.security, &cfg.root)?;
     let date = today()?;
     let tag = cfg.git_tag(&release);
     let branch = format!("release/{tag}");
@@ -429,7 +456,7 @@ fn prepare(open_pr: bool, package: Option<&str>) -> Result<(), String> {
         cfg.corpus.display()
     );
 
-    let source = record::package_source(&cfg, &release, &date, &head, &rows);
+    let source = record::package_source(&cfg, &release, &date, &head, &rows, &security);
     std::fs::create_dir_all(cfg.package_dir()).map_err(|e| e.to_string())?;
     std::fs::write(
         cfg.package_dir().join("publet.json"),
@@ -573,8 +600,11 @@ fn tag_one(cfg: &Config) -> Result<(), String> {
         record::locked(lock.as_deref(), &format!("{}#identity", cfg.package)).unwrap_or_default();
     let release =
         record::locked(lock.as_deref(), &format!("{}#release", cfg.package)).unwrap_or_default();
-    published::require_signed(cfg, &identity)?;
-    published::require_signed(cfg, &release)?;
+    for part in record_parts(cfg) {
+        let cid = record::locked(lock.as_deref(), &format!("{}#{part}", cfg.package))
+            .ok_or_else(|| missing_part(cfg, part))?;
+        published::require_signed(cfg, &cid)?;
+    }
     let annotation = format!(
         "{} {version}\n\npackage {} [{}]\nidentity {identity}\nrelease  {release}",
         cfg.name, cfg.package, cfg.tag
