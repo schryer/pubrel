@@ -221,6 +221,7 @@ name = "pubrel"
 version = "0.3.0"
 dependencies = [
  "publet-core",
+ "semver",
  "serde_json",
  "toml_edit",
 ]

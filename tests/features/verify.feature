@@ -11,7 +11,7 @@ Feature: A release is checked against the key the repository names
     And pub is not available
     And I run pubrel check against main
     Then it succeeds
-    And it prints "release 0.2.0"
+    And it prints "release 0.1.1"
 
   Scenario: A signed release is tagged without pub
     When pub is not available

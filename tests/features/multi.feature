@@ -16,10 +16,10 @@ Feature: One repository releases several packages
 
   Scenario: The crate with its own version is released alone, and pinned
     When "demo-algo" records "added" "a faster sort" and is released
-    Then the release branch is "release/demo-algo-v0.2.0"
-    And "crates/algo/Cargo.toml" states "0.2.0"
+    Then the release branch is "release/demo-algo-v0.1.1"
+    And "crates/algo/Cargo.toml" states "0.1.1"
     And the workspace states "0.1.0"
-    And the workspace pins "crates/algo" at "0.2.0"
+    And the workspace pins "crates/algo" at "0.1.1"
     And the workspace pins "crates/core" at "0.1.0"
 
   Scenario: A workspace bump leaves the other crate's pin alone, even at the same version
@@ -33,7 +33,7 @@ Feature: One repository releases several packages
     When "demo-algo" records "added" "a faster sort" and its release is cut
     And I run pubrel check against main
     Then it succeeds
-    And it prints "demo-algo: release 0.2.0"
+    And it prints "demo-algo: release 0.1.1"
 
   Scenario: A change to a crate both packages ship is recorded for both
     When a branch changes "crates/algo/src/lib.rs" and records "fixed" "an overflow" for "demo-algo"

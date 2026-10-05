@@ -13,14 +13,20 @@ Python.
 ## The rules
 
 The version follows mechanically from the categories of what changed since
-the last release:
+the last release, under Cargo's flavour of semantic versioning, the one
+`cargo` resolves `^` requirements by:
 
-| Category | Meaning | Bump |
-|---|---|---|
-| `changed`, `removed` | an already-published interface changed: commands, flags, output, exit codes, file formats, object shapes | major |
-| `added` | a new feature | minor |
-| `fixed`, `security` | the same functionality | patch |
-| `internal` | code changed, nothing users run did: a refactor, a crate moved | none |
+| Category | Meaning | From 1.0.0 | Below 1.0.0 |
+|---|---|---|---|
+| `changed`, `removed` | an already-published interface changed: commands, flags, output, exit codes, file formats, object shapes | major | minor |
+| `added` | a new feature | minor | patch |
+| `fixed`, `security` | the same functionality | patch | patch |
+| `internal` | code changed, nothing users run did: a refactor, a crate moved | none | none |
+
+Below 1.0.0, as Cargo reads `0.y.z`, `y` is the breaking part: `0.3.1` to
+`0.4.0` breaks, and `0.3.1` to `0.3.2` does not, whatever it adds. So a
+dependent's `^0.3` requirement takes every compatible release and no
+breaking one.
 
 A package never released before is first released at its manifest version,
 raised to at least 0.1.0. `internal` changes never make a release on their

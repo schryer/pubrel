@@ -8,11 +8,11 @@ Feature: A release is cut from main as a pull request
     And the unreleased changes "added" pushed to main
     When I run pubrel prepare
     Then it succeeds
-    And the manifest states "0.2.0"
-    And the published release record states "0.2.0" with "added"
+    And the manifest states "0.1.1"
+    And the published release record states "0.1.1" with "added"
     And the unreleased list is empty
-    And CHANGELOG.md has a section "## 0.2.0"
-    And a pull request "Release v0.2.0" was requested from "release/v0.2.0"
+    And CHANGELOG.md has a section "## 0.1.1"
+    And a pull request "Release v0.1.1" was requested from "release/v0.1.1"
 
     Examples:
       | kind            |

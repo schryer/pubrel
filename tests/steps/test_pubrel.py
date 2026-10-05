@@ -169,8 +169,8 @@ def alter(pkg):
     # gives the alteration away.
     path = pkg.object_file(pkg.locked("pkg.demo#identity"))
     data = path.read_bytes()
-    assert b"0.2.0" in data
-    path.write_bytes(data.replace(b"0.2.0", b"0.2.1"))
+    assert b"0.1.1" in data
+    path.write_bytes(data.replace(b"0.1.1", b"0.1.2"))
     pkg.commit("alter the published identity")
 
 

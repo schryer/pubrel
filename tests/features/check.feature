@@ -27,7 +27,7 @@ Feature: CI holds every change to the rules
     When a branch records "added" "a feature" and is released
     And I run pubrel check against main
     Then it succeeds
-    And it prints "release 0.2.0"
+    And it prints "release 0.1.1"
 
   Scenario: A release whose manifest disagrees fails
     When a branch records "added" "a feature" and is released
