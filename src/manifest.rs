@@ -8,7 +8,7 @@ use std::process::Command;
 
 use toml_edit::{DocumentMut, Item, value};
 
-use crate::version::Version;
+use crate::version::{self, Version};
 
 /// The kinds of manifest a package may keep its version in.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -69,7 +69,7 @@ pub fn read(text: &str, kind: Kind) -> Result<Version, String> {
     let stated = version_item(&doc, kind)
         .and_then(Item::as_str)
         .ok_or_else(|| format!("the manifest states no version where a {kind:?} does"))?;
-    Version::parse(stated)
+    version::parse(stated)
 }
 
 /// The manifest with its version set to `version`. For a workspace, every
@@ -81,7 +81,7 @@ pub fn read(text: &str, kind: Kind) -> Result<Version, String> {
 /// # Errors
 ///
 /// Returns a message if the text is not TOML or states no version.
-pub fn write(text: &str, kind: Kind, version: Version, own: &[String]) -> Result<String, String> {
+pub fn write(text: &str, kind: Kind, version: &Version, own: &[String]) -> Result<String, String> {
     let old = read(text, kind)?.to_string();
     let mut doc: DocumentMut = text.parse().map_err(|e| format!("not TOML: {e}"))?;
     let [outer, inner] = kind.table();
@@ -126,7 +126,7 @@ fn same_dir(a: &str, b: &str) -> bool {
 /// # Errors
 ///
 /// Returns a message if the text is not TOML.
-pub fn pin(text: &str, dir: &str, version: Version) -> Result<Option<String>, String> {
+pub fn pin(text: &str, dir: &str, version: &Version) -> Result<Option<String>, String> {
     let mut doc: DocumentMut = text.parse().map_err(|e| format!("not TOML: {e}"))?;
     let Some(deps) = doc
         .get_mut("workspace")
@@ -198,9 +198,9 @@ core = { path = "crates/core", version = "0.0.1" }
 
     #[test]
     fn a_workspace_moves_with_its_internal_dependencies() {
-        let v = Version::parse("0.1.0").unwrap();
+        let v = &version::parse("0.1.0").unwrap();
         let out = write(WORKSPACE, Kind::CargoWorkspace, v, &[]).unwrap();
-        assert_eq!(read(&out, Kind::CargoWorkspace).unwrap(), v);
+        assert_eq!(read(&out, Kind::CargoWorkspace).unwrap(), *v);
         assert!(
             out.contains(r#"core = { path = "crates/core", version = "0.1.0" }"#),
             "{out}"
@@ -214,21 +214,21 @@ core = { path = "crates/core", version = "0.0.1" }
 
     #[test]
     fn a_package_and_a_pyproject_change_only_their_version() {
-        let v = Version::parse("0.2.0").unwrap();
+        let v = &version::parse("0.2.0").unwrap();
         let cargo = "[package]\nname = \"x\"\nversion = \"0.1.0\" # keep\n";
         let out = write(cargo, Kind::CargoPackage, v, &[]).unwrap();
-        assert_eq!(read(&out, Kind::CargoPackage).unwrap(), v);
+        assert_eq!(read(&out, Kind::CargoPackage).unwrap(), *v);
         assert!(out.contains("name = \"x\""));
         let py = "[project]\nname = \"y\"\nversion = \"0.1.0\"\n";
         let out = write(py, Kind::Pyproject, v, &[]).unwrap();
-        assert_eq!(read(&out, Kind::Pyproject).unwrap(), v);
+        assert_eq!(read(&out, Kind::Pyproject).unwrap(), *v);
     }
 
     #[test]
     fn a_crate_with_its_own_version_keeps_its_pin_through_a_workspace_bump() {
         // core shares the workspace's old version by coincidence; it is
         // released on its own, so the workspace bump leaves it alone.
-        let v = Version::parse("0.1.0").unwrap();
+        let v = &version::parse("0.1.0").unwrap();
         let out = write(
             WORKSPACE,
             Kind::CargoWorkspace,
@@ -236,7 +236,7 @@ core = { path = "crates/core", version = "0.0.1" }
             &["crates/core".to_owned()],
         )
         .unwrap();
-        assert_eq!(read(&out, Kind::CargoWorkspace).unwrap(), v);
+        assert_eq!(read(&out, Kind::CargoWorkspace).unwrap(), *v);
         assert!(
             out.contains(r#"core = { path = "crates/core", version = "0.0.1" }"#),
             "{out}"
@@ -245,7 +245,7 @@ core = { path = "crates/core", version = "0.0.1" }
 
     #[test]
     fn its_own_release_pins_it() {
-        let v = Version::parse("0.3.0").unwrap();
+        let v = &version::parse("0.3.0").unwrap();
         let out = pin(WORKSPACE, "crates/core/", v).unwrap().unwrap();
         assert!(
             out.contains(r#"core = { path = "crates/core", version = "0.3.0" }"#),

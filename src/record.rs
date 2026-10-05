@@ -163,7 +163,7 @@ impl Config {
 
     /// The git tag a release of this package is: `v0.2.0`, `publet-core-v0.2.0`.
     #[must_use]
-    pub fn git_tag(&self, version: Version) -> String {
+    pub fn git_tag(&self, version: &Version) -> String {
         format!("{}{version}", self.tag_prefix)
     }
 
@@ -290,7 +290,7 @@ pub fn write_changes(path: &Path, rows: &[Change]) -> Result<(), String> {
 #[must_use]
 pub fn package_source(
     cfg: &Config,
-    version: Version,
+    version: &Version,
     date: &str,
     commit: &str,
     rows: &[Change],
@@ -332,12 +332,18 @@ pub fn package_source(
 
 // --- pub --------------------------------------------------------------------
 
+/// The `pub` releases this pubrel works with.
+static PUB_REQUIRED: std::sync::LazyLock<semver::VersionReq> = std::sync::LazyLock::new(|| {
+    semver::VersionReq::parse("^0.1").unwrap_or(semver::VersionReq::STAR)
+});
+
 /// The `pub` to drive: `$PUB`, or `pub` on the PATH.
 pub fn pub_program() -> String {
     std::env::var("PUB").unwrap_or_else(|_| "pub".to_owned())
 }
 
-/// Confirm the `pub` this will drive is a released 0.x, at least 0.1.
+/// Confirm the `pub` this will drive is a release `^0.1` admits, as Cargo
+/// reads it: at least 0.1.0 and below 0.2.0.
 ///
 /// # Errors
 ///
@@ -355,8 +361,8 @@ pub fn require_pub() -> Result<(), String> {
         .to_owned();
     let version = first
         .strip_prefix("pub ")
-        .and_then(|v| Version::parse(v).ok())
-        .filter(|v| v.major == 0 && v.minor >= 1);
+        .and_then(|v| version::parse(v).ok())
+        .filter(|v| PUB_REQUIRED.matches(v));
     if version.is_none() {
         return Err(format!(
             "pubrel drives a released pub ^0.1, and `{program} --version` says {first:?}; \
@@ -419,7 +425,7 @@ pub fn published_version(cfg: &Config, lock_text: Option<&str>) -> Result<Option
         .pointer("/body/data/rows/0/1")
         .and_then(Value::as_str)
         .ok_or_else(|| format!("{cid} states no version"))?;
-    Version::parse(stated).map(Some)
+    version::parse(stated).map(Some)
 }
 
 /// A published release, read back from its `release` claim.
@@ -467,7 +473,7 @@ pub fn releases(cfg: &Config) -> Vec<Release> {
         else {
             continue;
         };
-        let Ok(version) = Version::parse(v) else {
+        let Ok(version) = version::parse(v) else {
             continue;
         };
         let rows = object
@@ -490,7 +496,7 @@ pub fn releases(cfg: &Config) -> Vec<Release> {
             rows,
         });
     }
-    out.sort_by_key(|r| std::cmp::Reverse(r.version));
+    out.sort_by(|a, b| b.version.cmp(&a.version));
     out
 }
 

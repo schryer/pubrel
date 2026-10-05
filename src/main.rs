@@ -359,7 +359,7 @@ fn check_release(cfg: &Config, base: &str) -> Result<Option<Version>, String> {
         .find(|r| r.version == published)
         .ok_or_else(|| format!("no published release record states {published}"))?;
     let cats: Vec<&str> = release.rows.iter().map(|(c, _)| c.as_str()).collect();
-    let expected = version::next(previous, base_manifest, &cats)?;
+    let expected = version::next(previous.clone(), base_manifest, &cats)?;
     if published != expected {
         return Err(format!(
             "the release states {published}, but its changes after {} make it {expected}",
@@ -408,9 +408,13 @@ fn prepare(open_pr: bool, package: Option<&str>) -> Result<(), String> {
     }
     let rows = unreleased(&cfg)?;
     let previous = record::published_version(&cfg, lock_text(&cfg).as_deref())?;
-    let release = version::next(previous, cfg.manifest_version()?, &categories(&rows))?;
+    let release = version::next(
+        previous.clone(),
+        cfg.manifest_version()?,
+        &categories(&rows),
+    )?;
     let date = today()?;
-    let tag = cfg.git_tag(release);
+    let tag = cfg.git_tag(&release);
     let branch = format!("release/{tag}");
     println!(
         "releasing {} {} -> {release} from {}",
@@ -425,7 +429,7 @@ fn prepare(open_pr: bool, package: Option<&str>) -> Result<(), String> {
         cfg.corpus.display()
     );
 
-    let source = record::package_source(&cfg, release, &date, &head, &rows);
+    let source = record::package_source(&cfg, &release, &date, &head, &rows);
     std::fs::create_dir_all(cfg.package_dir()).map_err(|e| e.to_string())?;
     std::fs::write(
         cfg.package_dir().join("publet.json"),
@@ -433,7 +437,7 @@ fn prepare(open_pr: bool, package: Option<&str>) -> Result<(), String> {
     )
     .map_err(|e| e.to_string())?;
     record::write_changes(&cfg.root.join(cfg.unreleased_rel()), &[])?;
-    set_versions(&cfg, &all, release)?;
+    set_versions(&cfg, &all, &release)?;
     manifest::refresh_lock(&cfg.root, cfg.kind, &cfg.name)?;
     record::run_pub(&cfg.corpus_dir(), &["build"])?;
     print!(
@@ -453,7 +457,7 @@ fn prepare(open_pr: bool, package: Option<&str>) -> Result<(), String> {
         return Ok(());
     }
     run("git", &["push", "-u", "origin", &branch], &cfg.root)?;
-    let notes = notes(&cfg, release)?;
+    let notes = notes(&cfg, &release)?;
     let pr = run(
         "gh",
         &[
@@ -475,7 +479,7 @@ fn prepare(open_pr: bool, package: Option<&str>) -> Result<(), String> {
 /// Set `cfg`'s manifest to `release`. Crates released with versions of
 /// their own keep their pins through a workspace bump; releasing one of
 /// them pins its new version in the workspace that depends on it.
-fn set_versions(cfg: &Config, all: &[Config], release: Version) -> Result<(), String> {
+fn set_versions(cfg: &Config, all: &[Config], release: &Version) -> Result<(), String> {
     let own: Vec<String> = all
         .iter()
         .filter(|o| o.name != cfg.name && o.kind == Kind::CargoPackage)
@@ -500,10 +504,10 @@ fn set_versions(cfg: &Config, all: &[Config], release: Version) -> Result<(), St
     Ok(())
 }
 
-fn notes(cfg: &Config, release: Version) -> Result<String, String> {
+fn notes(cfg: &Config, release: &Version) -> Result<String, String> {
     let found = record::releases(cfg)
         .into_iter()
-        .find(|r| r.version == release)
+        .find(|r| r.version == *release)
         .ok_or_else(|| format!("no published release record states {release}"))?;
     let mut text = record::section(&found);
     if let Some(install) = &cfg.install {
@@ -549,7 +553,7 @@ fn tag() -> Result<(), String> {
 /// Tag and release `cfg`'s manifest version, if it is published and untagged.
 fn tag_one(cfg: &Config) -> Result<(), String> {
     let version = cfg.manifest_version()?;
-    let tag = cfg.git_tag(version);
+    let tag = cfg.git_tag(&version);
     if !run("git", &["tag", "-l", &tag], &cfg.root)?
         .trim()
         .is_empty()
@@ -558,7 +562,7 @@ fn tag_one(cfg: &Config) -> Result<(), String> {
         return Ok(());
     }
     let lock = lock_text(cfg);
-    if record::published_version(cfg, lock.as_deref())? != Some(version) {
+    if record::published_version(cfg, lock.as_deref())?.as_ref() != Some(&version) {
         println!(
             "{version} is not a published release of {}; nothing to tag",
             cfg.package
@@ -577,7 +581,7 @@ fn tag_one(cfg: &Config) -> Result<(), String> {
     );
     run("git", &["tag", "-a", &tag, "-m", &annotation], &cfg.root)?;
     run("git", &["push", "origin", &tag], &cfg.root)?;
-    let notes = notes(cfg, version)?;
+    let notes = notes(cfg, &version)?;
     run(
         "gh",
         &[
