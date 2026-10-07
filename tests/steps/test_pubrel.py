@@ -15,6 +15,7 @@ scenarios("../features/changelog.feature")
 scenarios("../features/verify.feature")
 scenarios("../features/multi.feature")
 scenarios("../features/security.feature")
+scenarios("../features/api.feature")
 
 
 # --- givens ------------------------------------------------------------------
@@ -404,3 +405,95 @@ def records_check(pkg, name: str, result: str, tool: str):
 def records_fact(pkg, name: str, value: str):
     rows = security_rows(pkg)
     assert any(r[0] == "fact" and r[1] == name and r[4] == value for r in rows), rows
+
+
+# --- API checks ----------------------------------------------------------------
+
+# A stand-in for cargo-semver-checks: it logs its arguments and reports
+# whatever $SEMVER_API says the API did, judged by the release type asked
+# about -- a break passes only a major release, an addition a minor one or
+# more -- as the real tool judges it.
+SEMVER_CHECKS = """#!/bin/sh
+printf '%s\\037' "$@" >> "$SEMVER_LOG"
+printf '\\n' >> "$SEMVER_LOG"
+level=""; prev=""
+for a in "$@"; do [ "$prev" = "--release-type" ] && level="$a"; prev="$a"; done
+api=$(cat "$SEMVER_API" 2>/dev/null)
+if [ "$api" = breaks ] && [ "$level" != major ]; then
+  echo "--- failure function_missing: pub fn removed or renamed ---"; exit 1
+fi
+if [ "$api" = grows ] && [ "$level" = patch ]; then
+  echo "--- warning function_added: pub fn added in a patch release ---"; exit 1
+fi
+echo "     Summary no semver update required"
+"""
+
+
+def semver_log(pkg) -> list[list[str]]:
+    log = pkg.tmp / "semver.log"
+    if not log.exists():
+        return []
+    return [line.split("\x1f")[:-1] for line in log.read_text().splitlines()]
+
+
+@given("release.json checks the crate's API")
+def checks_api(pkg):
+    tool = pkg.fake / "cargo-semver-checks"
+    tool.write_text(SEMVER_CHECKS)
+    tool.chmod(0o755)
+    pkg.env["SEMVER_LOG"] = str(pkg.tmp / "semver.log")
+    pkg.env["SEMVER_API"] = str(pkg.tmp / "semver.api")
+    path = pkg.root / "release.json"
+    config = json.loads(path.read_text())
+    config["semver-checks"] = True
+    path.write_text(json.dumps(config, indent=2))
+    pkg.commit("check the API")
+    pkg.git("push", "-q", "origin", "main")
+
+
+@given(parsers.parse('a cargo crate released and tagged at "{version}", whose API is checked'),
+       target_fixture="pkg")
+def checked_crate(make_package, version: str):
+    pkg = released(make_package, "cargo", version)
+    checks_api(pkg)
+    pkg.git("tag", f"v{version}")
+    return pkg
+
+
+@given("the API breaks")
+def api_breaks(pkg):
+    (pkg.tmp / "semver.api").write_text("breaks")
+
+
+@given("the API grows")
+def api_grows(pkg):
+    (pkg.tmp / "semver.api").write_text("grows")
+
+
+@when(parsers.parse('the tag "{tag}" is deleted'))
+def tag_deleted(pkg, tag: str):
+    pkg.git("tag", "-d", tag)
+
+
+def checked(call: list[str], crate: str, tag: str, level: str) -> bool:
+    expected = ["semver-checks", "check-release", "--package", crate,
+                "--baseline-rev", tag, "--release-type", level]
+    return call == expected
+
+
+@then(parsers.parse('the API of "{crate}" was checked against "{tag}" as a "{level}" release'))
+def api_checked(pkg, crate: str, tag: str, level: str):
+    calls = semver_log(pkg)
+    assert any(checked(c, crate, tag, level) for c in calls), calls
+
+
+@then(parsers.parse('the API of "{crate}" was last checked against "{tag}" as a "{level}" release'))
+def api_last_checked(pkg, crate: str, tag: str, level: str):
+    calls = semver_log(pkg)
+    assert calls and checked(calls[-1], crate, tag, level), calls
+
+
+@then(parsers.parse('pubrel next prints "{version}"'))
+def next_prints(pkg, version: str):
+    proc = pkg.pubrel_run("next")
+    assert proc.returncode == 0 and proc.stdout.strip() == version, proc.stdout + proc.stderr

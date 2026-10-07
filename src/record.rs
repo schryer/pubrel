@@ -46,6 +46,8 @@ pub struct Config {
     pub changelog: PathBuf,
     /// The security checks a release must pass, recorded in it.
     pub security: crate::security::Declared,
+    /// Whether the crate's public API is checked against its last release.
+    pub semver_checks: bool,
 }
 
 impl Config {
@@ -137,6 +139,16 @@ impl Config {
             },
             PathBuf::from,
         );
+        let semver_checks = json
+            .get("semver-checks")
+            .and_then(Value::as_bool)
+            .unwrap_or(false);
+        if semver_checks && kind != Kind::CargoPackage {
+            return Err(format!(
+                "{name}: `semver-checks` checks a crate's public API, so it needs a \
+                 cargo-package manifest"
+            ));
+        }
         Ok(Self {
             root: root.to_path_buf(),
             name,
@@ -163,6 +175,7 @@ impl Config {
             security: crate::security::Declared::from_json(
                 json.get("security").or_else(|| top.get("security")),
             )?,
+            semver_checks,
         })
     }
 
@@ -225,6 +238,24 @@ impl Config {
         let text = std::fs::read_to_string(self.root.join(&self.manifest))
             .map_err(|e| format!("{}: {e}", self.manifest.display()))?;
         crate::manifest::read(&text, self.kind)
+    }
+
+    /// The crate's name, as its manifest states it: `[package].name`.
+    ///
+    /// # Errors
+    ///
+    /// Returns a message if the manifest cannot be read or names no package.
+    pub fn crate_name(&self) -> Result<String, String> {
+        let text = std::fs::read_to_string(self.root.join(&self.manifest))
+            .map_err(|e| format!("{}: {e}", self.manifest.display()))?;
+        let doc: toml_edit::DocumentMut = text
+            .parse()
+            .map_err(|e| format!("{}: not TOML: {e}", self.manifest.display()))?;
+        doc.get("package")
+            .and_then(|p| p.get("name"))
+            .and_then(toml_edit::Item::as_str)
+            .map(str::to_owned)
+            .ok_or_else(|| format!("{} names no [package]", self.manifest.display()))
     }
 }
 

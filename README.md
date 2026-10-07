@@ -118,6 +118,31 @@ the release, the changelog and the GitHub release list it, and `check` and
 `tag` refuse a release whose record is missing or unsigned. What was
 checked for a version is as verifiable as the version itself.
 
+## API checks
+
+A crate released on its own may set `"semver-checks": true` in its
+`release.json` entry. Its public API is then compared with the one at its
+last release's tag by
+[`cargo-semver-checks`](https://github.com/obi1kenobi/cargo-semver-checks),
+and may move only as far as the changes recorded since allow:
+
+| recorded | the API may | level |
+|---|---|---|
+| `changed` or `removed` | break | major |
+| `added` | grow, not break | minor |
+| anything else | stay as it is | patch |
+
+The level is what the change *is*, not the version it makes: below 1.0 a
+break bumps the minor version, and is still a break. So a removed function
+recorded as `fixed` fails `check` on its pull request, and again in
+`prepare`, with the tool's findings and the `pubrel add` that would record
+it. `check` runs it whenever the crate's code changes, and on a release
+pull request; a crate never released has nothing to compare against, and
+says so.
+
+The baseline is a git tag, so CI needs the tags (`fetch-depth: 0`, as the
+shared workflow checks out) and the tool: pass `semver-checks-version`.
+
 ## CI
 
 Every package calls the same workflow:
@@ -125,7 +150,7 @@ Every package calls the same workflow:
 ```yaml
 release:
   uses: schryer/pubrel/.github/workflows/release.yml@vX.Y.Z
-  with: { pubrel-version: vX.Y.Z }
+  with: { pubrel-version: vX.Y.Z }   # add semver-checks-version: 0.51.0 for API checks
   permissions: { contents: write }
 ```
 
