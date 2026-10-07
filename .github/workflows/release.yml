@@ -9,6 +9,8 @@
 # require, and published. On main, `pubrel tag` tags and releases a
 # version the package publet records as released. Both read the package
 # publet and verify its signatures in-process, so no `pub` is installed.
+# A crate whose release.json entry sets semver-checks also has its public
+# API checked against its last release: pass semver-checks-version.
 # Nothing here signs: a release is signed when its package publet is
 # published, locally.
 name: release
@@ -22,6 +24,10 @@ on:
         default: ''
       pubrel-version:
         description: The pubrel tag to install pubrel from; empty builds it from this checkout.
+        type: string
+        default: ''
+      semver-checks-version:
+        description: The cargo-semver-checks version to install, for packages whose release.json entry sets semver-checks; empty installs none.
         type: string
         default: ''
 
@@ -49,6 +55,20 @@ jobs:
           pubrel --version
         env:
           INPUT_PUBREL: ${{ inputs.pubrel-version }}
+      - if: inputs.semver-checks-version != ''
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/bin/cargo-semver-checks
+          key: cargo-semver-checks-${{ inputs.semver-checks-version }}-${{ runner.os }}
+      - name: Install cargo-semver-checks
+        if: inputs.semver-checks-version != ''
+        run: |
+          command -v cargo-semver-checks >/dev/null \
+            && cargo-semver-checks --version | grep -q " ${INPUT_SEMVER}$" \
+            || cargo install --locked cargo-semver-checks --version "$INPUT_SEMVER"
+          cargo-semver-checks --version
+        env:
+          INPUT_SEMVER: ${{ inputs.semver-checks-version }}
       - name: Check this change against the release rules
         if: github.event_name == 'pull_request'
         run: pubrel check "origin/${{ github.base_ref }}"

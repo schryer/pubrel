@@ -11,6 +11,7 @@
 //! The version follows from the categories of what changed, never from
 //! judgement at release time (see [`version`]).
 
+mod api;
 mod manifest;
 mod published;
 mod record;
@@ -321,12 +322,29 @@ fn check(base: &str) -> Result<(), String> {
             println!("{}ok: no code changed", who(cfg));
         } else {
             println!("{}ok: {added} change(s) recorded", who(cfg));
+            if let Some(line) = check_api(cfg, &categories(&after))? {
+                println!("{}ok: {line}", who(cfg));
+            }
         }
     }
     if missing.is_empty() {
         Ok(())
     } else {
         Err(missing.join("\n"))
+    }
+}
+
+/// Check `cfg`'s public API against its last release, if release.json asks
+/// for that and there is a release to check against.
+fn check_api(cfg: &Config, categories: &[&str]) -> Result<Option<String>, String> {
+    if !cfg.semver_checks {
+        return Ok(None);
+    }
+    match record::published_version(cfg, lock_text(cfg).as_deref())? {
+        Some(baseline) => api::check(cfg, &baseline, categories).map(Some),
+        None => Ok(Some(
+            "API: not checked, as there is no earlier release to check it against".to_owned(),
+        )),
     }
 }
 
@@ -390,6 +408,11 @@ fn check_release(cfg: &Config, base: &str) -> Result<Option<Version>, String> {
             previous.map_or_else(|| "nothing".to_owned(), |p| p.to_string())
         ));
     }
+    if cfg.semver_checks
+        && let Some(previous) = &previous
+    {
+        println!("{}: {}", cfg.name, api::check(cfg, previous, &cats)?);
+    }
     let manifest_now = cfg.manifest_version()?;
     if manifest_now != published {
         return Err(format!(
@@ -438,7 +461,11 @@ fn prepare(open_pr: bool, package: Option<&str>) -> Result<(), String> {
         &categories(&rows),
     )?;
     // The checks run on the tree being released, before anything changes:
-    // a release is cut only when they pass.
+    // a release is cut only when they pass. A non-release pull request has
+    // already checked the API, but main may have moved since.
+    if let Some(line) = check_api(&cfg, &categories(&rows))? {
+        println!("{line}");
+    }
     let security = security::run(&cfg.security, &cfg.root)?;
     let date = today()?;
     let tag = cfg.git_tag(&release);
