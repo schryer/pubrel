@@ -2,7 +2,7 @@
   "claims": {
     "identity": {
       "class": "archival",
-      "content": "pubrel 0.4.1 is released as v0.4.1 from commit 0fb8f054259eb52b84b1a31ee9e1afe43f10f8f4.",
+      "content": "pubrel 0.4.2 is released as v0.4.2 from commit 5ba28c0ecf2fd5b53bab895f4c6273645da0a05d.",
       "data": {
         "columns": [
           {
@@ -27,25 +27,25 @@
         "rows": [
           [
             "pubrel",
-            "0.4.1",
+            "0.4.2",
             "pubrel --version",
-            "pubrel 0.4.1",
-            "v0.4.1",
-            "0fb8f054259eb52b84b1a31ee9e1afe43f10f8f4"
+            "pubrel 0.4.2",
+            "v0.4.2",
+            "5ba28c0ecf2fd5b53bab895f4c6273645da0a05d"
           ]
         ]
       },
-      "scope": "the published release v0.4.1 of pubrel",
+      "scope": "the published release v0.4.2 of pubrel",
       "sources": [
         {
           "ref": "pubrel",
-          "revision": "0fb8f054259eb52b84b1a31ee9e1afe43f10f8f4"
+          "revision": "5ba28c0ecf2fd5b53bab895f4c6273645da0a05d"
         }
       ]
     },
     "release": {
       "class": "archival",
-      "content": "pubrel 0.4.1 was released on 2026-10-05 from commit 0fb8f054259eb52b84b1a31ee9e1afe43f10f8f4 with these changes.",
+      "content": "pubrel 0.4.2 was released on 2026-10-07 from commit 5ba28c0ecf2fd5b53bab895f4c6273645da0a05d with these changes.",
       "data": {
         "columns": [
           {
@@ -58,23 +58,23 @@
         "rows": [
           [
             "added",
-            "release.json may declare security checks and facts. prepare runs the checks before releasing, refuses to release if one fails, and records each check's command, tool version and summary, and each fact, as a security claim signed with the release; the changelog and release notes list it, and check and tag refuse a release whose declared record is missing or unsigned."
+            "A crate whose release.json entry sets `\"semver-checks\": true` has its public API checked against its last release by cargo-semver-checks, in `check` and `prepare`: `changed` or `removed` allow a break, `added` an addition, and anything else no change. The release workflow installs the tool when given `semver-checks-version`."
           ]
         ]
       },
       "depends": [
         "#identity"
       ],
-      "scope": "the published release v0.4.1 of pubrel",
+      "scope": "the published release v0.4.2 of pubrel",
       "sources": [
         {
           "ref": "pubrel",
-          "revision": "0fb8f054259eb52b84b1a31ee9e1afe43f10f8f4"
+          "revision": "5ba28c0ecf2fd5b53bab895f4c6273645da0a05d"
         }
       ]
     }
   },
-  "created": "2026-10-05T00:00:00Z",
+  "created": "2026-10-07T00:00:00Z",
   "sections": [
     {
       "heading": "Identity",
