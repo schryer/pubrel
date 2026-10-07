@@ -1,9 +1,4 @@
 {
-  "changes": [
-    {
-      "category": "added",
-      "change": "A crate whose release.json entry sets `\"semver-checks\": true` has its public API checked against its last release by cargo-semver-checks, in `check` and `prepare`: `changed` or `removed` allow a break, `added` an addition, and anything else no change. The release workflow installs the tool when given `semver-checks-version`."
-    }
-  ],
+  "changes": [],
   "comment": "Changes not yet released. One row per change: category changed or removed (a published interface changed: major), added (a feature: minor), or fixed or security (patch). `pubrel add` appends one; `pubrel prepare` moves them into the package publet."
 }
