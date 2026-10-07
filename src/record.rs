@@ -301,25 +301,49 @@ pub fn changes(text: Option<&str>) -> Result<Vec<Change>, String> {
     Ok(out)
 }
 
+/// The summary an `unreleased.json` gives the next release, if any.
+#[must_use]
+pub fn summary(text: Option<&str>) -> Option<String> {
+    let json: Value = serde_json::from_str(text?).ok()?;
+    json.get("summary")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(str::to_owned)
+}
+
 /// Write an `unreleased.json`.
 ///
 /// # Errors
 ///
 /// Returns a message if the file cannot be written.
-pub fn write_changes(path: &Path, rows: &[Change]) -> Result<(), String> {
+pub fn write_changes(path: &Path, rows: &[Change], summary: Option<&str>) -> Result<(), String> {
     if let Some(dir) = path.parent() {
         std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
     }
-    let json = json!({
+    let mut json = json!({
         "comment": "Changes not yet released. One row per change: category changed or \
                     removed (a published interface changed: major), added (a feature: \
                     minor), or fixed or security (patch). `pubrel add` appends one; \
-                    `pubrel prepare` moves them into the package publet.",
+                    `pubrel summary` sets the release's summary; `pubrel prepare` moves \
+                    them into the package publet.",
         "changes": rows.iter().map(|r| json!({"category": r.category, "change": r.change}))
             .collect::<Vec<_>>(),
     });
+    if let Some(summary) = summary {
+        json["summary"] = Value::String(summary.to_owned());
+    }
     let text = serde_json::to_string_pretty(&json).map_err(|e| e.to_string())? + "\n";
     std::fs::write(path, text).map_err(|e| format!("{}: {e}", path.display()))
+}
+
+/// What a summary claim's content puts between the version and the summary:
+/// "pubrel 0.5.0 in brief: ...".
+const BRIEF: &str = " in brief: ";
+
+/// What every claim's content about a release of `cfg` starts with.
+fn prefix(cfg: &Config) -> String {
+    format!("{} ", cfg.name)
 }
 
 /// The package publet's source for a release.
@@ -330,6 +354,7 @@ pub fn package_source(
     date: &str,
     commit: &str,
     rows: &[Change],
+    summary: Option<&str>,
     security: &[crate::security::Row],
 ) -> Value {
     let tag = cfg.git_tag(version);
@@ -365,6 +390,20 @@ pub fn package_source(
             {"heading": "Release", "items": [{"ref": "#release"}]},
         ],
     });
+    if let Some(summary) = summary {
+        source["claims"]["summary"] = json!({
+            "class": "archival", "scope": scope,
+            "content": format!("{}{version}{BRIEF}{summary}", prefix(cfg)),
+            "depends": ["#release"],
+            "sources": [{"ref": cfg.name, "revision": commit}],
+        });
+        if let Some(sections) = source["sections"].as_array_mut() {
+            sections.insert(
+                0,
+                json!({"heading": "Summary", "items": [{"ref": "#summary"}]}),
+            );
+        }
+    }
     if !security.is_empty() {
         source["claims"]["security"] = json!({
             "class": "archival", "scope": scope,
@@ -491,6 +530,8 @@ pub struct Release {
     pub commit: String,
     pub cid: String,
     pub rows: Vec<(String, String)>,
+    /// The release's summary, if it has one.
+    pub summary: Option<String>,
     /// The security record, if the release has one.
     pub security: Vec<crate::security::Row>,
 }
@@ -499,9 +540,10 @@ pub struct Release {
 /// claim's lineage, read from the corpus's objects.
 #[must_use]
 pub fn releases(cfg: &Config) -> Vec<Release> {
-    let prefix = format!("{} ", cfg.name);
+    let prefix = prefix(cfg);
     let mut out = Vec::new();
     let mut security: Vec<(Version, Vec<crate::security::Row>)> = Vec::new();
+    let mut summaries: Vec<(Version, String)> = Vec::new();
     let dir = cfg.corpus_dir().join("objects");
     let Ok(entries) = std::fs::read_dir(&dir) else {
         return out;
@@ -525,6 +567,13 @@ pub fn releases(cfg: &Config) -> Vec<Release> {
         let Some(rest) = content.strip_prefix(&prefix) else {
             continue;
         };
+        // "<version> in brief: <summary>"
+        if let Some((v, summary)) = rest.split_once(BRIEF) {
+            if let Ok(version) = version::parse(v) {
+                summaries.push((version, summary.to_owned()));
+            }
+            continue;
+        }
         let words: Vec<&str> = rest.split_whitespace().collect();
         // "<version> passed these security checks before release on <date>."
         if let (Some(v), Some(&"passed")) = (words.first(), words.get(1)) {
@@ -560,12 +609,16 @@ pub fn releases(cfg: &Config) -> Vec<Release> {
             commit: (*commit).to_owned(),
             cid,
             rows,
+            summary: None,
             security: Vec::new(),
         });
     }
     for release in &mut out {
         if let Some((_, rows)) = security.iter().find(|(v, _)| *v == release.version) {
             release.security.clone_from(rows);
+        }
+        if let Some((_, text)) = summaries.iter().find(|(v, _)| *v == release.version) {
+            release.summary = Some(text.clone());
         }
     }
     out.sort_by(|a, b| b.version.cmp(&a.version));
@@ -603,6 +656,9 @@ pub fn section(r: &Release) -> String {
         r.commit.chars().take(12).collect::<String>(),
         r.cid
     );
+    if let Some(summary) = &r.summary {
+        let _ = write!(out, "{summary}\n\n");
+    }
     for category in version::CATEGORIES {
         let entries: Vec<&String> = r
             .rows
@@ -668,6 +724,17 @@ mod tests {
             .is_err()
         );
         assert!(changes(None).unwrap().is_empty());
+    }
+
+    #[test]
+    fn a_summary_is_optional_and_never_blank() {
+        assert_eq!(
+            summary(Some(r#"{"changes": [], "summary": " Faster. "}"#)).as_deref(),
+            Some("Faster.")
+        );
+        assert_eq!(summary(Some(r#"{"changes": [], "summary": "  "}"#)), None);
+        assert_eq!(summary(Some(r#"{"changes": []}"#)), None);
+        assert_eq!(summary(None), None);
     }
 
     #[test]

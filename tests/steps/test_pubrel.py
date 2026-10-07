@@ -16,6 +16,7 @@ scenarios("../features/verify.feature")
 scenarios("../features/multi.feature")
 scenarios("../features/security.feature")
 scenarios("../features/api.feature")
+scenarios("../features/summary.feature")
 
 
 # --- givens ------------------------------------------------------------------
@@ -497,3 +498,65 @@ def api_last_checked(pkg, crate: str, tag: str, level: str):
 def next_prints(pkg, version: str):
     proc = pkg.pubrel_run("next")
     assert proc.returncode == 0 and proc.stdout.strip() == version, proc.stdout + proc.stderr
+
+
+# --- summaries -----------------------------------------------------------------
+
+
+def unreleased_json(pkg) -> dict:
+    path = pkg.root / "corpus" / "publets" / "pkg.demo" / "unreleased.json"
+    return json.loads(path.read_text()) if path.exists() else {}
+
+
+@given(parsers.parse('the summary "{text}"'))
+def set_summary(pkg, text: str):
+    pkg.ok(str(pkg.pubrel), "summary", text)
+    pkg.commit("summarise the next release")
+    pkg.git("push", "-q", "origin", "main")
+
+
+@when("I run pubrel summary", target_fixture="result")
+def run_summary(pkg):
+    return pkg.pubrel_run("summary")
+
+
+@when("the summary's signatures are removed")
+def unsign_summary(pkg):
+    target = pkg.locked("pkg.demo#summary")
+    for path in pkg.objects().glob("*.cbor"):
+        obj = json.loads(pkg.pub("read", "--json", str(path)).stdout)["object"]
+        if obj["type"] == "sig" and obj["body"]["target"] == target:
+            path.unlink()
+    pkg.commit("remove the summary's signatures")
+
+
+@then(parsers.parse('CHANGELOG.md has "{text}" before "{heading}"'))
+def changelog_before(pkg, text: str, heading: str):
+    log = (pkg.root / "CHANGELOG.md").read_text()
+    newest = log.split("\n## ")[1]
+    assert text in newest and newest.index(text) < newest.index(heading), newest
+
+
+@then(parsers.parse('the pull request\'s notes begin the release with "{text}"'))
+def notes_begin(pkg, text: str):
+    # The notes span lines, so read the fake gh's log whole: the summary
+    # follows the line naming the commit and release record.
+    log = pkg.gh_log.read_text()
+    assert "pr\x1fcreate" in log, log
+    assert f"`.\n\n{text}\n\n### " in log, log
+
+
+@then(parsers.parse('the published summary is "{content}"'))
+def published_summary(pkg, content: str):
+    assert pkg.published("pkg.demo#summary")["body"]["content"] == content
+
+
+@then("the unreleased list has no summary")
+def no_unreleased_summary(pkg):
+    assert "summary" not in unreleased_json(pkg)
+
+
+@then("no summary is published")
+def no_summary(pkg):
+    lock = json.loads((pkg.root / "corpus" / "corpus.lock").read_text())
+    assert not any(r["slug"] == "pkg.demo#summary" for r in lock["publets"])
