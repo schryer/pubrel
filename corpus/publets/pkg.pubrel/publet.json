@@ -2,7 +2,7 @@
   "claims": {
     "identity": {
       "class": "archival",
-      "content": "pubrel 0.4.2 is released as v0.4.2 from commit 5ba28c0ecf2fd5b53bab895f4c6273645da0a05d.",
+      "content": "pubrel 0.4.3 is released as v0.4.3 from commit 3c975b576fb244a80165ba519827cb4e0cb8ea46.",
       "data": {
         "columns": [
           {
@@ -27,25 +27,25 @@
         "rows": [
           [
             "pubrel",
-            "0.4.2",
+            "0.4.3",
             "pubrel --version",
-            "pubrel 0.4.2",
-            "v0.4.2",
-            "5ba28c0ecf2fd5b53bab895f4c6273645da0a05d"
+            "pubrel 0.4.3",
+            "v0.4.3",
+            "3c975b576fb244a80165ba519827cb4e0cb8ea46"
           ]
         ]
       },
-      "scope": "the published release v0.4.2 of pubrel",
+      "scope": "the published release v0.4.3 of pubrel",
       "sources": [
         {
           "ref": "pubrel",
-          "revision": "5ba28c0ecf2fd5b53bab895f4c6273645da0a05d"
+          "revision": "3c975b576fb244a80165ba519827cb4e0cb8ea46"
         }
       ]
     },
     "release": {
       "class": "archival",
-      "content": "pubrel 0.4.2 was released on 2026-10-07 from commit 5ba28c0ecf2fd5b53bab895f4c6273645da0a05d with these changes.",
+      "content": "pubrel 0.4.3 was released on 2026-10-08 from commit 3c975b576fb244a80165ba519827cb4e0cb8ea46 with these changes.",
       "data": {
         "columns": [
           {
@@ -58,23 +58,23 @@
         "rows": [
           [
             "added",
-            "A crate whose release.json entry sets `\"semver-checks\": true` has its public API checked against its last release by cargo-semver-checks, in `check` and `prepare`: `changed` or `removed` allow a break, `added` an addition, and anything else no change. The release workflow installs the tool when given `semver-checks-version`."
+            "A release may open with a summary: `pubrel summary TEXT` sets a paragraph for the next release, which `prepare` publishes as a signed `summary` claim and the changelog and GitHub release show above the list of changes."
           ]
         ]
       },
       "depends": [
         "#identity"
       ],
-      "scope": "the published release v0.4.2 of pubrel",
+      "scope": "the published release v0.4.3 of pubrel",
       "sources": [
         {
           "ref": "pubrel",
-          "revision": "5ba28c0ecf2fd5b53bab895f4c6273645da0a05d"
+          "revision": "3c975b576fb244a80165ba519827cb4e0cb8ea46"
         }
       ]
     }
   },
-  "created": "2026-10-07T00:00:00Z",
+  "created": "2026-10-08T00:00:00Z",
   "sections": [
     {
       "heading": "Identity",

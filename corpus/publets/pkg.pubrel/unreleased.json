@@ -1,9 +1,4 @@
 {
-  "changes": [
-    {
-      "category": "added",
-      "change": "A release may open with a summary: `pubrel summary TEXT` sets a paragraph for the next release, which `prepare` publishes as a signed `summary` claim and the changelog and GitHub release show above the list of changes."
-    }
-  ],
+  "changes": [],
   "comment": "Changes not yet released. One row per change: category changed or removed (a published interface changed: major), added (a feature: minor), or fixed or security (patch). `pubrel add` appends one; `pubrel summary` sets the release's summary; `pubrel prepare` moves them into the package publet."
 }
