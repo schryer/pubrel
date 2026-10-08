@@ -38,6 +38,7 @@ in it.
 ```sh
 pubrel init                                  # release.json and an empty unreleased list
 pubrel add added "a new subcommand"          # every PR that changes code records a row
+pubrel summary "Faster checks, and ..."      # optional: a paragraph opening the release
 pubrel next                                  # the version the rows imply
 pubrel prepare                               # on a clean main: cut a release PR
 ```
@@ -46,6 +47,12 @@ pubrel prepare                               # on a clean main: cut a release PR
 manifest version, publishes the package publet with the corpus's key,
 regenerates `CHANGELOG.md`, and opens a `release/vX.Y.Z` pull request.
 Merging it is the release: CI tags it.
+
+A release may open with a summary, set by `pubrel summary`: a paragraph,
+in prose, of what the release is about. It is published as a `summary`
+claim, signed with the release, and the changelog and GitHub release show
+it above the list of changes. Recording a change keeps it; `prepare`
+moves it into the release with the rows.
 
 `release.json` at the repository root says where everything is:
 

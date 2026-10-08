@@ -32,6 +32,8 @@ usage: pubrel <command> [--package NAME]
   init                    write release.json and an empty unreleased.json
   add CATEGORY CHANGE...  record a change: changed, removed, added, fixed,
                           security, or internal (no bump)
+  summary [TEXT...]       set the next release's summary, a paragraph shown
+                          above its changes; with no text, print it
   next                    the version the unreleased changes imply
   check BASE              CI: a code change records what it changes; a release
                           is the bump its changes require, and published
@@ -56,6 +58,7 @@ fn main() -> ExitCode {
         }
         Some("init") => init(),
         Some("add") => add(&args[1..], package),
+        Some("summary") => summary(&args[1..], package),
         Some("next") => next(package),
         Some("check") => args.get(1).map_or_else(
             || Err("usage: pubrel check BASE".to_owned()),
@@ -148,6 +151,11 @@ fn unreleased(cfg: &Config) -> Result<Vec<Change>, String> {
     record::changes(std::fs::read_to_string(path).ok().as_deref())
 }
 
+fn unreleased_summary(cfg: &Config) -> Option<String> {
+    let path = cfg.root.join(cfg.unreleased_rel());
+    record::summary(std::fs::read_to_string(path).ok().as_deref())
+}
+
 fn categories(rows: &[Change]) -> Vec<&str> {
     rows.iter().map(|r| r.category.as_str()).collect()
 }
@@ -198,7 +206,7 @@ fn init() -> Result<(), String> {
     )
     .map_err(|e| e.to_string())?;
     let cfg = config(None)?;
-    record::write_changes(&cfg.root.join(cfg.unreleased_rel()), &[])?;
+    record::write_changes(&cfg.root.join(cfg.unreleased_rel()), &[], None)?;
     println!("release.json and {} written.", cfg.unreleased_rel());
     println!(
         "Set `tag` to a Section 9.1 tag (PKG-XXXXXX-MM-YYYY) and `code` to the paths users run."
@@ -231,8 +239,31 @@ fn add(args: &[String], package: Option<&str>) -> Result<(), String> {
         category: category.clone(),
         change: text.trim().to_owned(),
     });
-    record::write_changes(&cfg.root.join(cfg.unreleased_rel()), &rows)?;
+    record::write_changes(
+        &cfg.root.join(cfg.unreleased_rel()),
+        &rows,
+        unreleased_summary(&cfg).as_deref(),
+    )?;
     println!("{} change(s) unreleased", rows.len());
+    Ok(())
+}
+
+fn summary(args: &[String], package: Option<&str>) -> Result<(), String> {
+    let cfg = config(package)?;
+    let text = args.join(" ");
+    if text.trim().is_empty() {
+        match unreleased_summary(&cfg) {
+            Some(summary) => println!("{summary}"),
+            None => println!("no summary yet: pubrel summary TEXT..."),
+        }
+        return Ok(());
+    }
+    record::write_changes(
+        &cfg.root.join(cfg.unreleased_rel()),
+        &unreleased(&cfg)?,
+        Some(text.trim()),
+    )?;
+    println!("summary set for the next release of {}", cfg.name);
     Ok(())
 }
 
@@ -350,11 +381,14 @@ fn check_api(cfg: &Config, categories: &[&str]) -> Result<Option<String>, String
 
 /// The claims a release of `cfg` must carry, signed: its identity, its
 /// changes, and -- when release.json declares security checks -- the record
-/// of them.
-fn record_parts(cfg: &Config) -> Vec<&'static str> {
+/// of them. A summary, when the lock records one, must be signed too.
+fn record_parts(cfg: &Config, lock: Option<&str>) -> Vec<&'static str> {
     let mut parts = vec!["identity", "release"];
     if !cfg.security.is_empty() {
         parts.push("security");
+    }
+    if record::locked(lock, &format!("{}#summary", cfg.package)).is_some() {
+        parts.push("summary");
     }
     parts
 }
@@ -383,7 +417,7 @@ fn check_release(cfg: &Config, base: &str) -> Result<Option<Version>, String> {
     if now_identity == base_identity {
         return Ok(None);
     }
-    for part in record_parts(cfg) {
+    for part in record_parts(cfg, now_lock.as_deref()) {
         let cid = record::locked(now_lock.as_deref(), &format!("{}#{part}", cfg.package))
             .ok_or_else(|| missing_part(cfg, part))?;
         published::require_signed(cfg, &cid)?;
@@ -483,14 +517,23 @@ fn prepare(open_pr: bool, package: Option<&str>) -> Result<(), String> {
         cfg.corpus.display()
     );
 
-    let source = record::package_source(&cfg, &release, &date, &head, &rows, &security);
+    let brief = unreleased_summary(&cfg);
+    let source = record::package_source(
+        &cfg,
+        &release,
+        &date,
+        &head,
+        &rows,
+        brief.as_deref(),
+        &security,
+    );
     std::fs::create_dir_all(cfg.package_dir()).map_err(|e| e.to_string())?;
     std::fs::write(
         cfg.package_dir().join("publet.json"),
         serde_json::to_string_pretty(&source).map_err(|e| e.to_string())? + "\n",
     )
     .map_err(|e| e.to_string())?;
-    record::write_changes(&cfg.root.join(cfg.unreleased_rel()), &[])?;
+    record::write_changes(&cfg.root.join(cfg.unreleased_rel()), &[], None)?;
     set_versions(&cfg, &all, &release)?;
     manifest::refresh_lock(&cfg.root, cfg.kind, &cfg.name)?;
     record::run_pub(&cfg.corpus_dir(), &["build"])?;
@@ -627,7 +670,7 @@ fn tag_one(cfg: &Config) -> Result<(), String> {
         record::locked(lock.as_deref(), &format!("{}#identity", cfg.package)).unwrap_or_default();
     let release =
         record::locked(lock.as_deref(), &format!("{}#release", cfg.package)).unwrap_or_default();
-    for part in record_parts(cfg) {
+    for part in record_parts(cfg, lock.as_deref()) {
         let cid = record::locked(lock.as_deref(), &format!("{}#{part}", cfg.package))
             .ok_or_else(|| missing_part(cfg, part))?;
         published::require_signed(cfg, &cid)?;
