@@ -44,8 +44,11 @@ pub fn allowed(categories: &[&str]) -> &'static str {
 ///
 /// # Errors
 ///
-/// Returns a message if the tool cannot run, the baseline tag is missing,
-/// or the API changed more than the changes recorded allow.
+/// Returns a message if `git` or `cargo-semver-checks` cannot be started,
+/// if the baseline's tag is not in the repository, if
+/// [`Config::crate_name`] fails, or if the tool exits
+/// non-zero: the API changed more than the changes recorded allow, or the
+/// tool failed for another reason, whose output the message includes.
 pub fn check(cfg: &Config, baseline: &Version, categories: &[&str]) -> Result<String, String> {
     let tag = cfg.git_tag(baseline);
     let tagged = Command::new("git")
@@ -136,6 +139,7 @@ fn tail(text: &str, lines: usize) -> String {
 mod tests {
     use super::*;
 
+    // covers: api::allowed
     #[test]
     fn the_strongest_recorded_change_sets_the_level() {
         assert_eq!(allowed(&["fixed", "removed"]), "major");
@@ -145,6 +149,7 @@ mod tests {
         assert_eq!(allowed(&[]), "patch");
     }
 
+    // covers: api::recorded
     #[test]
     fn categories_are_reported_once_each() {
         assert_eq!(

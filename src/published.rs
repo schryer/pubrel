@@ -73,8 +73,9 @@ fn to_json(value: &Cbor) -> Value {
 ///
 /// # Errors
 ///
-/// Returns a message if it is not held, or its bytes are not the ones
-/// `cid` names.
+/// Returns a message if `cid` is not an identifier, the corpus's
+/// `objects/` holds no file for it, or the file does not parse as an
+/// object whose bytes are the ones `cid` names.
 pub fn read_object(cfg: &Config, cid: &str) -> Result<Value, String> {
     let object = load(cfg, cid)?;
     let mut out = Map::new();
@@ -122,9 +123,15 @@ fn bytes<'a>(object: &'a Object, field: &str) -> Option<&'a [u8]> {
 /// read from its own `key` object, whose identifier is checked like every
 /// other object's.
 ///
+/// If `release.json` names no key, nothing is checked: a warning goes to
+/// stderr, and this returns `Ok`.
+///
 /// # Errors
 ///
-/// Returns a message saying what is missing or does not verify.
+/// Returns a message if the key object cannot be loaded, is not an
+/// `ed25519` key, or states no public key; if `cid` cannot be loaded; if
+/// the corpus's `objects/` cannot be listed; or if no `sig` object there,
+/// by that key, targets `cid` with a signature that verifies.
 pub fn require_signed(cfg: &Config, cid: &str) -> Result<(), String> {
     let Some(key_cid) = cfg.key.as_deref() else {
         eprintln!(
