@@ -21,6 +21,7 @@ use crate::version::{self, Version};
 /// and the signing key are the repository's, shared unless a package names
 /// its own.
 pub struct Config {
+    /// The repository's root: the directory holding `release.json`.
     pub root: PathBuf,
     /// The package's name, as releases are titled: `publet-cli`.
     pub name: String,
@@ -32,7 +33,9 @@ pub struct Config {
     pub tag_prefix: String,
     /// The corpus directory, relative to the root.
     pub corpus: PathBuf,
+    /// The kind of manifest the version is kept in.
     pub kind: Kind,
+    /// The manifest, relative to the root: `Cargo.toml`.
     pub manifest: PathBuf,
     /// Path prefixes whose change is a change to what users run.
     pub code: Vec<String>,
@@ -55,7 +58,13 @@ impl Config {
     ///
     /// # Errors
     ///
-    /// Returns a message if it is missing or malformed.
+    /// Returns a message if `release.json` cannot be read or is not JSON;
+    /// if `packages` is present but is not a non-empty list; if an entry
+    /// lacks `name`, `package`, `tag`, `manifest.kind` or `manifest.path`,
+    /// or names an unknown manifest kind; if an entry sets `semver-checks`
+    /// without a `cargo-package` manifest; if a `security` section is
+    /// malformed (see [`crate::security::Declared::from_json`]); or if two
+    /// packages share a name or a tag prefix.
     pub fn read_all(root: &Path) -> Result<Vec<Self>, String> {
         let path = root.join("release.json");
         let text = std::fs::read_to_string(&path).map_err(|_| {
@@ -200,10 +209,12 @@ impl Config {
         self.code.iter().any(|c| path.starts_with(c.as_str()))
     }
 
+    /// The corpus directory, as an absolute path under the root.
     pub fn corpus_dir(&self) -> PathBuf {
         self.root.join(&self.corpus)
     }
 
+    /// The package publet's source directory: `<corpus>/publets/<package>`.
     pub fn package_dir(&self) -> PathBuf {
         self.corpus_dir().join("publets").join(&self.package)
     }
@@ -218,6 +229,7 @@ impl Config {
             .into_owned()
     }
 
+    /// The corpus's lock, relative to the root, as git names it.
     pub fn lock_rel(&self) -> String {
         self.corpus
             .join("corpus.lock")
@@ -225,6 +237,7 @@ impl Config {
             .into_owned()
     }
 
+    /// The manifest, relative to the root, as git names it.
     pub fn manifest_rel(&self) -> String {
         self.manifest.to_string_lossy().into_owned()
     }
@@ -233,7 +246,8 @@ impl Config {
     ///
     /// # Errors
     ///
-    /// Returns a message if it cannot be read.
+    /// Returns a message if the manifest cannot be read, or if
+    /// [`crate::manifest::read`] fails on its text.
     pub fn manifest_version(&self) -> Result<Version, String> {
         let text = std::fs::read_to_string(self.root.join(&self.manifest))
             .map_err(|e| format!("{}: {e}", self.manifest.display()))?;
@@ -262,15 +276,19 @@ impl Config {
 /// One recorded change.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Change {
+    /// One of [`version::CATEGORIES`].
     pub category: String,
+    /// What changed, in a sentence.
     pub change: String,
 }
 
-/// The changes an `unreleased.json` lists.
+/// The changes an `unreleased.json` lists. `None`, for a file that does
+/// not exist, lists none.
 ///
 /// # Errors
 ///
-/// Returns a message if it is malformed or names an unknown category.
+/// Returns a message if the text is not JSON, or if a row of `changes` has
+/// a category not in [`version::CATEGORIES`] or a blank `change`.
 pub fn changes(text: Option<&str>) -> Result<Vec<Change>, String> {
     let Some(text) = text else {
         return Ok(Vec::new());
@@ -312,11 +330,12 @@ pub fn summary(text: Option<&str>) -> Option<String> {
         .map(str::to_owned)
 }
 
-/// Write an `unreleased.json`.
+/// Write an `unreleased.json`, creating its directory if need be.
 ///
 /// # Errors
 ///
-/// Returns a message if the file cannot be written.
+/// Returns a message if the directory cannot be created or the file cannot
+/// be written.
 pub fn write_changes(path: &Path, rows: &[Change], summary: Option<&str>) -> Result<(), String> {
     if let Some(dir) = path.parent() {
         std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
@@ -468,11 +487,12 @@ pub fn require_pub() -> Result<(), String> {
     Ok(())
 }
 
-/// Run `pub` in `dir`.
+/// Run `pub` in `dir`, and return what it printed to stdout.
 ///
 /// # Errors
 ///
-/// Returns a message with `pub`'s output if it fails.
+/// Returns a message if `pub` cannot be started, or, with its stdout and
+/// stderr, if it exits non-zero.
 pub fn run_pub(dir: &Path, args: &[&str]) -> Result<String, String> {
     let out = Command::new(pub_program())
         .args(args)
@@ -506,11 +526,14 @@ pub fn locked(lock_text: Option<&str>, slug: &str) -> Option<String> {
         .map(str::to_owned)
 }
 
-/// The version a lock's published package identity states, if any.
+/// The version a lock's published package identity states. `None` if the
+/// lock records no identity for the package.
 ///
 /// # Errors
 ///
-/// Returns a message if the identity is recorded but cannot be read.
+/// Returns a message if the identity is recorded but
+/// [`read_object`] fails on it, or it states no version, or the version is
+/// not plain `MAJOR.MINOR.PATCH`.
 pub fn published_version(cfg: &Config, lock_text: Option<&str>) -> Result<Option<Version>, String> {
     let Some(cid) = locked(lock_text, &format!("{}#identity", cfg.package)) else {
         return Ok(None);
@@ -525,10 +548,15 @@ pub fn published_version(cfg: &Config, lock_text: Option<&str>) -> Result<Option
 
 /// A published release, read back from its `release` claim.
 pub struct Release {
+    /// The version released.
     pub version: Version,
+    /// The release date, `YYYY-MM-DD`, as the claim states it.
     pub date: String,
+    /// The commit released from, as the claim states it.
     pub commit: String,
+    /// The `release` claim's identifier.
     pub cid: String,
+    /// The changes released, as (category, change) pairs.
     pub rows: Vec<(String, String)>,
     /// The release's summary, if it has one.
     pub summary: Option<String>,
@@ -704,6 +732,7 @@ pub fn section(r: &Release) -> String {
 mod tests {
     use super::*;
 
+    // covers: record::changes
     #[test]
     fn unreleased_rows_are_validated() {
         let ok = changes(Some(
@@ -726,6 +755,7 @@ mod tests {
         assert!(changes(None).unwrap().is_empty());
     }
 
+    // covers: record::summary
     #[test]
     fn a_summary_is_optional_and_never_blank() {
         assert_eq!(
@@ -737,6 +767,7 @@ mod tests {
         assert_eq!(summary(None), None);
     }
 
+    // covers: record::locked
     #[test]
     fn a_lock_row_is_found_by_slug() {
         let lock = r#"{"publets": [{"slug": "pkg.x#identity", "cid": "pub:sha2-256:abc"}]}"#;

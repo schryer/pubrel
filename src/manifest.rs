@@ -27,7 +27,8 @@ impl Kind {
     ///
     /// # Errors
     ///
-    /// Returns a message naming the known kinds.
+    /// Returns a message naming the known kinds if `name` is not
+    /// `cargo-workspace`, `cargo-package` or `pyproject`.
     pub fn parse(name: &str) -> Result<Self, String> {
         match name {
             "cargo-workspace" => Ok(Self::CargoWorkspace),
@@ -63,7 +64,9 @@ fn version_item(doc: &DocumentMut, kind: Kind) -> Option<&Item> {
 ///
 /// # Errors
 ///
-/// Returns a message if the text is not TOML or states no version there.
+/// Returns a message if the text is not TOML, states no version where
+/// `kind` keeps it, or states one that is not plain `MAJOR.MINOR.PATCH`
+/// (see [`version::parse`]).
 pub fn read(text: &str, kind: Kind) -> Result<Version, String> {
     let doc: DocumentMut = text.parse().map_err(|e| format!("not TOML: {e}"))?;
     let stated = version_item(&doc, kind)
@@ -80,7 +83,7 @@ pub fn read(text: &str, kind: Kind) -> Result<Version, String> {
 ///
 /// # Errors
 ///
-/// Returns a message if the text is not TOML or states no version.
+/// Returns a message if [`read`] fails on the text.
 pub fn write(text: &str, kind: Kind, version: &Version, own: &[String]) -> Result<String, String> {
     let old = read(text, kind)?.to_string();
     let mut doc: DocumentMut = text.parse().map_err(|e| format!("not TOML: {e}"))?;
@@ -153,10 +156,13 @@ pub fn pin(text: &str, dir: &str, version: &Version) -> Result<Option<String>, S
 }
 
 /// Bring the lockfile in line with the new version, where there is one.
+/// For a Cargo manifest with a `Cargo.lock` at `root`, this runs
+/// `cargo update --offline`, for the workspace or for the package `name`.
+/// For anything else it does nothing.
 ///
 /// # Errors
 ///
-/// Returns a message if the package manager fails.
+/// Returns a message if `cargo` cannot be started or exits non-zero.
 pub fn refresh_lock(root: &Path, kind: Kind, name: &str) -> Result<(), String> {
     let args: Vec<&str> = match kind {
         Kind::CargoWorkspace => vec!["update", "--workspace", "--offline"],
@@ -196,6 +202,7 @@ graphset = { git = "https://example.org/g", rev = "abc", version = "0.1.0" }
 core = { path = "crates/core", version = "0.0.1" }
 "#;
 
+    // covers: manifest::write, manifest::read
     #[test]
     fn a_workspace_moves_with_its_internal_dependencies() {
         let v = &version::parse("0.1.0").unwrap();
@@ -212,6 +219,7 @@ core = { path = "crates/core", version = "0.0.1" }
         );
     }
 
+    // covers: manifest::write, manifest::read
     #[test]
     fn a_package_and_a_pyproject_change_only_their_version() {
         let v = &version::parse("0.2.0").unwrap();
@@ -224,6 +232,7 @@ core = { path = "crates/core", version = "0.0.1" }
         assert_eq!(read(&out, Kind::Pyproject).unwrap(), *v);
     }
 
+    // covers: manifest::write
     #[test]
     fn a_crate_with_its_own_version_keeps_its_pin_through_a_workspace_bump() {
         // core shares the workspace's old version by coincidence; it is
@@ -243,6 +252,7 @@ core = { path = "crates/core", version = "0.0.1" }
         );
     }
 
+    // covers: manifest::pin
     #[test]
     fn its_own_release_pins_it() {
         let v = &version::parse("0.3.0").unwrap();
@@ -258,6 +268,7 @@ core = { path = "crates/core", version = "0.0.1" }
         assert!(pin(WORKSPACE, "crates/other", v).unwrap().is_none());
     }
 
+    // covers: manifest::read, manifest::Kind::parse
     #[test]
     fn a_manifest_without_a_version_there_is_refused() {
         assert!(read("[package]\nname = \"x\"\n", Kind::CargoPackage).is_err());

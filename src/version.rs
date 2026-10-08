@@ -126,6 +126,7 @@ mod tests {
         next(Some(v(previous)), v(previous), categories).unwrap()
     }
 
+    // covers: version::next
     #[test]
     fn from_one_each_category_bumps_its_part() {
         assert_eq!(bump("1.4.2", &["added"]), v("1.5.0"));
@@ -136,6 +137,7 @@ mod tests {
         assert_eq!(bump("1.4.2", &["fixed", "added"]), v("1.5.0"));
     }
 
+    // covers: version::next
     #[test]
     fn below_one_a_break_bumps_minor_and_anything_else_patch() {
         assert_eq!(bump("0.3.1", &["changed"]), v("0.4.0"));
@@ -145,6 +147,7 @@ mod tests {
         assert_eq!(bump("0.3.1", &["added", "fixed"]), v("0.3.2"));
     }
 
+    // covers: version::next
     #[test]
     fn a_first_release_is_the_manifest_version_at_least_0_1_0() {
         assert_eq!(next(None, v("0.0.1"), &["added"]).unwrap(), v("0.1.0"));
@@ -152,6 +155,7 @@ mod tests {
         assert_eq!(next(None, v("0.2.2"), &["changed"]).unwrap(), v("0.2.2"));
     }
 
+    // covers: version::next
     #[test]
     fn internal_changes_never_bump_and_never_release_alone() {
         assert!(next(Some(v("0.1.0")), v("0.1.0"), &["internal"]).is_err());
@@ -160,12 +164,14 @@ mod tests {
         assert_eq!(bump("0.1.0", &["changed", "internal"]), v("0.2.0"));
     }
 
+    // covers: version::next
     #[test]
     fn unknown_or_absent_changes_are_refused() {
         assert!(next(Some(v("0.1.0")), v("0.1.0"), &["oops"]).is_err());
         assert!(next(Some(v("0.1.0")), v("0.1.0"), &[]).is_err());
     }
 
+    // covers: version::parse
     #[test]
     fn only_plain_release_versions_parse() {
         assert_eq!(v("10.2.33").to_string(), "10.2.33");

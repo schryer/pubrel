@@ -29,23 +29,29 @@ pub struct Check {
 /// A command whose first line of output is recorded beside the checks.
 #[derive(Debug, Clone)]
 pub struct Fact {
+    /// What the fact is called in the record.
     pub name: String,
+    /// The shell command whose first non-empty line is the fact's value.
     pub run: String,
 }
 
 /// What `release.json`'s `security` section declares.
 #[derive(Debug, Clone, Default)]
 pub struct Declared {
+    /// The checks, run in the order listed.
     pub checks: Vec<Check>,
+    /// The facts, read after every check has passed.
     pub facts: Vec<Fact>,
 }
 
 impl Declared {
     /// Read a `security` section: `{"checks": [...], "facts": [...]}`.
+    /// `None`, or a list that is absent or not a list, declares nothing.
     ///
     /// # Errors
     ///
-    /// Returns a message naming what is missing.
+    /// Returns a message naming what is missing if a check or a fact lacks
+    /// a string `name` or `run`.
     pub fn from_json(json: Option<&Value>) -> Result<Self, String> {
         let Some(json) = json else {
             return Ok(Self::default());
@@ -79,6 +85,7 @@ impl Declared {
         Ok(Self { checks, facts })
     }
 
+    /// Whether nothing is declared: no checks and no facts.
     #[must_use]
     pub fn is_empty(&self) -> bool {
         self.checks.is_empty() && self.facts.is_empty()
@@ -90,6 +97,7 @@ impl Declared {
 pub struct Row {
     /// `check` or `fact`.
     pub kind: String,
+    /// The check's or fact's name, as declared.
     pub name: String,
     /// The command run.
     pub command: String,
@@ -132,8 +140,11 @@ fn last_line(text: &str) -> String {
 ///
 /// # Errors
 ///
-/// Returns a message, with the end of its output, if any check fails or
-/// any command cannot be run: a release is cut only when its checks pass.
+/// Returns a message, with the end of its output, if a check exits
+/// non-zero; a message if a fact's command exits non-zero; and a message if
+/// `sh` cannot be started for any command. A check's `version` command
+/// that exits non-zero is not an error: its first line is recorded as it
+/// is. A release is cut only when this succeeds.
 pub fn run(declared: &Declared, dir: &Path) -> Result<Vec<Row>, String> {
     let mut rows = Vec::new();
     for check in &declared.checks {
@@ -184,6 +195,7 @@ pub fn run(declared: &Declared, dir: &Path) -> Result<Vec<Row>, String> {
 mod tests {
     use super::*;
 
+    // covers: security::first_line, security::last_line
     #[test]
     fn summaries_are_the_first_and_last_lines_printed() {
         assert_eq!(first_line("\n  tool 1.2\nmore\n"), "tool 1.2");
@@ -191,6 +203,7 @@ mod tests {
         assert_eq!(last_line(""), "");
     }
 
+    // covers: security::Declared::from_json, security::Declared::is_empty
     #[test]
     fn a_declaration_needs_names_and_commands() {
         let ok = serde_json::json!({"checks": [{"name": "a", "run": "true"}]});
