@@ -19,6 +19,13 @@ Feature: A release carries a signed record of its security checks
     And the published security record lists the fact "advisory database" as "abc1234"
     And CHANGELOG.md has "advisories: `printf 'checking\nadvisories ok\n'` (cargo-deny 9.9.9) -- advisories ok" under "### Security checks"
 
+  Scenario: A warning on stderr does not stand in for the check's summary
+    Given release.json declares the security check "advisories" that prints "advisories ok" and warns "duplicate entries for crate syn"
+    And the unreleased changes "fixed" pushed to main
+    When I run pubrel prepare
+    Then it succeeds
+    And the published security record lists the check "advisories" with "advisories ok" from "cargo-deny 9.9.9"
+
   Scenario: A failing check stops the release before anything changes
     Given release.json declares the security check "advisories" that fails
     And the unreleased changes "fixed" pushed to main

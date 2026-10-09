@@ -108,15 +108,42 @@ pub struct Row {
     pub result: String,
 }
 
-fn shell(command: &str, dir: &Path) -> Result<(bool, String), String> {
+fn shell(command: &str, dir: &Path) -> Result<Output, String> {
     let out = Command::new("sh")
         .args(["-c", command])
         .current_dir(dir)
         .output()
         .map_err(|e| format!("cannot run `{command}`: {e}"))?;
-    let mut text = String::from_utf8_lossy(&out.stdout).into_owned();
-    text.push_str(&String::from_utf8_lossy(&out.stderr));
-    Ok((out.status.success(), text))
+    Ok(Output {
+        ok: out.status.success(),
+        stdout: String::from_utf8_lossy(&out.stdout).into_owned(),
+        stderr: String::from_utf8_lossy(&out.stderr).into_owned(),
+    })
+}
+
+/// What a command printed, with its two streams kept apart: tools print
+/// their result to stdout and their warnings to stderr, so joining them
+/// would let a warning stand in for the result.
+struct Output {
+    ok: bool,
+    stdout: String,
+    stderr: String,
+}
+
+impl Output {
+    /// The stream a result is read from: stdout, unless it printed nothing.
+    fn result(&self) -> &str {
+        if self.stdout.trim().is_empty() {
+            &self.stderr
+        } else {
+            &self.stdout
+        }
+    }
+
+    /// Both streams, for a failure's message.
+    fn both(&self) -> String {
+        format!("{}{}", self.stdout, self.stderr)
+    }
 }
 
 fn first_line(text: &str) -> String {
@@ -138,6 +165,10 @@ fn last_line(text: &str) -> String {
 
 /// Run every declared check and fact in `dir`.
 ///
+/// A check's result is the last line it printed to stdout, and a fact's
+/// value or a tool's version is the first. Each falls back to stderr only
+/// when stdout is empty.
+///
 /// # Errors
 ///
 /// Returns a message, with the end of its output, if a check exits
@@ -149,9 +180,10 @@ pub fn run(declared: &Declared, dir: &Path) -> Result<Vec<Row>, String> {
     let mut rows = Vec::new();
     for check in &declared.checks {
         println!("security check {}: {}", check.name, check.run);
-        let (ok, output) = shell(&check.run, dir)?;
-        if !ok {
-            let tail: Vec<&str> = output.lines().rev().take(12).collect();
+        let output = shell(&check.run, dir)?;
+        if !output.ok {
+            let both = output.both();
+            let tail: Vec<&str> = both.lines().rev().take(12).collect();
             let tail: Vec<&str> = tail.into_iter().rev().collect();
             return Err(format!(
                 "security check `{}` failed, so nothing is released:\n{}",
@@ -160,7 +192,7 @@ pub fn run(declared: &Declared, dir: &Path) -> Result<Vec<Row>, String> {
             ));
         }
         let tool = match &check.version {
-            Some(command) => first_line(&shell(command, dir)?.1),
+            Some(command) => first_line(shell(command, dir)?.result()),
             None => String::new(),
         };
         rows.push(Row {
@@ -168,12 +200,12 @@ pub fn run(declared: &Declared, dir: &Path) -> Result<Vec<Row>, String> {
             name: check.name.clone(),
             command: check.run.clone(),
             tool,
-            result: last_line(&output),
+            result: last_line(output.result()),
         });
     }
     for fact in &declared.facts {
-        let (ok, output) = shell(&fact.run, dir)?;
-        if !ok {
+        let output = shell(&fact.run, dir)?;
+        if !output.ok {
             return Err(format!(
                 "security fact `{}` could not be read: `{}` failed",
                 fact.name, fact.run
@@ -184,7 +216,7 @@ pub fn run(declared: &Declared, dir: &Path) -> Result<Vec<Row>, String> {
             name: fact.name.clone(),
             command: fact.run.clone(),
             tool: String::new(),
-            result: first_line(&output),
+            result: first_line(output.result()),
         });
     }
     Ok(rows)
@@ -201,6 +233,27 @@ mod tests {
         assert_eq!(first_line("\n  tool 1.2\nmore\n"), "tool 1.2");
         assert_eq!(last_line("checking\n\nadvisories ok\n\n"), "advisories ok");
         assert_eq!(last_line(""), "");
+    }
+
+    #[test]
+    fn a_result_is_read_from_stdout_and_warnings_on_stderr_are_ignored() {
+        // As cargo deny prints them: the summary on stdout, warnings after
+        // it on stderr. Joined, a warning stood in for the summary.
+        let dir = std::env::temp_dir();
+        let out = shell(
+            "printf 'advisories ok\\n'; printf 'duplicate syn\\n' >&2",
+            &dir,
+        )
+        .unwrap();
+        assert_eq!(last_line(out.result()), "advisories ok");
+        let quiet = shell("printf 'only on stderr\\n' >&2", &dir).unwrap();
+        assert_eq!(last_line(quiet.result()), "only on stderr");
+        assert!(
+            shell("echo a; echo b >&2; exit 1", &dir)
+                .unwrap()
+                .both()
+                .contains('b')
+        );
     }
 
     // covers: security::Declared::from_json, security::Declared::is_empty
