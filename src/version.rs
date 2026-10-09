@@ -66,8 +66,9 @@ pub fn known(category: &str) -> bool {
 ///
 /// # Errors
 ///
-/// Returns a message if a category is unknown, or if nothing but internal
-/// changes (or nothing at all) is recorded.
+/// Returns a message if a category is unknown, if nothing but internal
+/// changes (or nothing at all) is recorded, or if the part of `previous`
+/// that must be bumped is already `u64::MAX`.
 pub fn next(
     previous: Option<Version>,
     manifest: Version,
@@ -97,19 +98,25 @@ pub fn next(
         .any(|c| matches!(*c, "changed" | "removed"));
     let feature = categories.contains(&"added");
     let (major, minor, patch) = (previous.major, previous.minor, previous.patch);
+    // A part already at u64::MAX cannot be bumped. The previous version
+    // comes from a release record, so this is refused, not a panic.
+    let full = |part: &str| {
+        format!("{previous} cannot be bumped: its {part} version is the largest a version can hold")
+    };
+    let up = |n: u64, part: &str| n.checked_add(1).ok_or_else(|| full(part));
     Ok(if major == 0 {
         // Cargo's 0.y.z: y is the breaking part; everything else is z.
         if breaking {
-            Version::new(0, minor + 1, 0)
+            Version::new(0, up(minor, "minor")?, 0)
         } else {
-            Version::new(0, minor, patch + 1)
+            Version::new(0, minor, up(patch, "patch")?)
         }
     } else if breaking {
-        Version::new(major + 1, 0, 0)
+        Version::new(up(major, "major")?, 0, 0)
     } else if feature {
-        Version::new(major, minor + 1, 0)
+        Version::new(major, up(minor, "minor")?, 0)
     } else {
-        Version::new(major, minor, patch + 1)
+        Version::new(major, minor, up(patch, "patch")?)
     })
 }
 
@@ -180,5 +187,24 @@ mod tests {
         assert!(parse("1.0.0-rc.1").is_err());
         assert!(parse("1.0.0+build").is_err());
         assert!(v("0.10.0") > v("0.9.9"));
+    }
+
+    // covers: version::next
+    #[test]
+    fn a_version_at_the_top_is_refused_not_overflowed() {
+        // Found by fuzzing (fuzz/regressions/manifest/version-at-u64-max):
+        // bumping a part already at u64::MAX panicked where overflow is
+        // checked, as it is in pubrel's release builds.
+        let top = u64::MAX;
+        for (previous, cats) in [
+            (Version::new(0, top, 0), vec!["changed"]),
+            (Version::new(0, 0, top), vec!["fixed"]),
+            (Version::new(top, 0, 0), vec!["removed"]),
+            (Version::new(1, top, 0), vec!["added"]),
+            (Version::new(1, 0, top), vec!["security"]),
+        ] {
+            let err = next(Some(previous.clone()), Version::new(0, 1, 0), &cats).unwrap_err();
+            assert!(err.contains("cannot be bumped"), "{previous}: {err}");
+        }
     }
 }

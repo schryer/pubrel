@@ -49,6 +49,15 @@ commands.
   repositories;
 - on a pull request, `pubrel check`, through pubrel's own release
   workflow built from the checkout.
+- fuzzing of what `check` reads from a pull request: `release.json`,
+  `unreleased.json`, the corpus lock and the manifests, with the version
+  arithmetic (`fuzz/`). Every input that once found a bug is replayed
+  first (`fuzz/regressions/`).
+
+**Fuzzing found** one bug before pubrel was published: bumping a version
+whose part to bump was already `u64::MAX` panicked, where it should
+refuse. Overflow is checked in pubrel's release builds, so a pull request
+could make `check` crash. It is fixed, with a regression test.
 
 **In the code:** `unsafe` is forbidden (`unsafe_code = "forbid"` in
 `Cargo.toml`). Release builds keep integer overflow checks
@@ -60,8 +69,4 @@ commands.
   `cargo vet` configuration, and no `SUPPLY-CHAIN.md`.
 - pubrel's own `release.json` declares no `security` checks, so its
   releases carry no signed security record.
-- Nothing is fuzzed. pubrel parses `release.json`, `unreleased.json`, the
-  corpus lock, manifests and the package publet's claims, and none of
-  those parsers has a fuzz target. Parsing and verifying the objects
-  themselves is done by `publet-core`.
 - CI does not test on a 32-bit or a big-endian target.
