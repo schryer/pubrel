@@ -367,6 +367,14 @@ def check_prints(pkg, name: str, line: str, tool: str):
                             "version": f"echo '{tool}'"})
 
 
+@given(parsers.parse('release.json declares the security check "{name}" that prints "{line}" and warns "{warning}"'))
+def check_prints_and_warns(pkg, name: str, line: str, warning: str):
+    # As cargo deny does: the summary on stdout, then warnings on stderr.
+    declare(pkg, "checks", {"name": name,
+                            "run": f"printf '{line}\\n'; printf '{warning}\\n' >&2",
+                            "version": "echo 'cargo-deny 9.9.9'"})
+
+
 @given(parsers.parse('release.json declares the security check "{name}" that fails'))
 def check_fails(pkg, name: str):
     declare(pkg, "checks", {"name": name,
