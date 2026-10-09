@@ -5,11 +5,15 @@ on:
   pull_request:
 
 jobs:
-  # The shared Rust CI: gates, cargo test on three platforms, and the Gherkin
-  # suite against a released pub.
+  # The shared Rust CI: gates, cargo test on three platforms, the Gherkin
+  # suite against a released pub, and the fuzz targets for what `check`
+  # reads from a pull request (fuzz/), after replaying every input that once
+  # found a bug.
   ci:
-    uses: schryer/pubkit/.github/workflows/rust-ci.yml@v0.3.0
-    with: { pub-version: v0.1.1 }
+    uses: schryer/pubkit/.github/workflows/rust-ci.yml@v0.3.1
+    with:
+      pub-version: v0.1.1
+      fuzz: true
 
   # pubrel is held to its own rules, by its own workflow, built from this
   # checkout -- so a change to the workflow is tested before a release

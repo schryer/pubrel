@@ -313,6 +313,12 @@ are resolved from `PUBREL_BIN_DIR` and `PUB_BIN_DIR`. The shared testing
 setup is [pubkit](https://github.com/schryer/pubkit)'s: the plugin those
 fixtures and the common steps come from, `pubkit.mk`, the hash-locked pins,
 and the CI workflow. `make sync-check` fails if the managed copies drift.
+
+What `pubrel check` reads from a pull request is fuzzed (`fuzz/`):
+`release.json`, `unreleased.json`, the corpus lock, and the manifests with
+the version arithmetic. `make fuzz-smoke` replays every input that once
+found a bug (`fuzz/regressions/`), then fuzzes each target for a minute.
+It needs nightly Rust and cargo-fuzz.
 pubrel's own CI calls its own release workflow from the checkout, so it is
 held to the rules it provides.
 

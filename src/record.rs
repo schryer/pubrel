@@ -73,8 +73,19 @@ impl Config {
                 root.display()
             )
         })?;
-        let json: Value =
-            serde_json::from_str(&text).map_err(|e| format!("{}: {e}", path.display()))?;
+        Self::parse_all(root, &text, &path.display().to_string())
+    }
+
+    /// Every package a `release.json`'s text describes, for a repository
+    /// at `root`; `source` names the text in a syntax error. [`Config::read_all`]
+    /// reads the file and calls this, and the fuzz targets call it directly.
+    ///
+    /// # Errors
+    ///
+    /// Returns a message in the cases [`Config::read_all`] lists, other than
+    /// a file that cannot be read.
+    pub fn parse_all(root: &Path, text: &str, source: &str) -> Result<Vec<Self>, String> {
+        let json: Value = serde_json::from_str(text).map_err(|e| format!("{source}: {e}"))?;
         let Some(packages) = json.get("packages") else {
             return Ok(vec![Self::from_json(root, &json, &json, false)?]);
         };
