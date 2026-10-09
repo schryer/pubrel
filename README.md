@@ -41,6 +41,7 @@ Merging it is the release: CI tags it.
 | `next` | Prints the version the unreleased changes imply. |
 | `check BASE` | For CI on a pull request: a change to a `code` path must record a row. A release must be exactly the bump its changes require, published, and signed by `key` when `release.json` names one. |
 | `prepare [--no-pr]` | Cuts a release: publishes the package publet, commits on a `release/` branch, and opens a pull request. `--no-pr` stops after the commit. |
+| `withdraw PR\|BRANCH` | After a release's pull request is closed unmerged: keeps `pub` from publishing its objects again. See [Withdrawing a release](#withdrawing-a-release). |
 | `changelog` | Regenerates each package's changelog from its package publet. |
 | `tag` | For CI on main: for each package whose manifest version is published and not yet tagged, creates the tag and the GitHub release. |
 | `--version` | Prints `pubrel X.Y.Z`. |
@@ -74,6 +75,28 @@ A package never released before is first released at its manifest version,
 raised to at least 0.1.0. `internal` changes never make a release on their
 own. They wait for the next release something else makes, and are listed
 in it.
+
+### Withdrawing a release
+
+A release cut by `prepare` but never merged must be withdrawn before the
+next one is cut. `prepare` publishes into `pub`'s local store
+(`corpus/.publet/`). Closing the release's pull request removes its objects
+from git, but not from the store, and `pub` exports what it holds. So the
+next release would carry the abandoned one's records too, permanently.
+
+```sh
+gh pr close 42                  # the release pull request, unmerged
+pubrel withdraw 42              # or the release branch: pubrel withdraw release/v1.2.3
+pubrel prepare                  # from main, as usual
+```
+
+`pubrel withdraw` lists every object that release added in
+`corpus/.draft-discards`, which `pub` never exports. It keeps that file out
+of git through the clone's own exclude file. It refuses a release that is
+already merged, and a branch that adds no release record. As a backstop,
+`prepare` and `check` refuse a release that carries records naming any
+other commit, and `prepare` says so when a release cut again unchanged
+reproduces a withdrawn object.
 
 A release may open with a summary, set by `pubrel summary`: a paragraph,
 in prose, of what the release is about. It is published as a `summary`

@@ -44,6 +44,34 @@ fn load(cfg: &Config, cid: &str) -> Result<Object, String> {
     Ok(object.into_inner())
 }
 
+/// A claim's prose content, from an object's bytes: `None` if the bytes
+/// are not an object, or the object is not a `claim.prose`. The bytes are
+/// not checked against an identifier; callers only read what a record says.
+#[must_use]
+pub fn claim_content(bytes: &[u8]) -> Option<String> {
+    let unverified = Object::parse(bytes).ok()?;
+    let object = unverified.peek();
+    if object.kind() != "claim.prose" {
+        return None;
+    }
+    object.body().iter().find_map(|(k, v)| match v {
+        Cbor::Text(text) if k == "content" => Some(text.clone()),
+        _ => None,
+    })
+}
+
+/// [`claim_content`] of the object `cid` names in the corpus's objects.
+#[must_use]
+pub fn content_of(cfg: &Config, cid: &str) -> Option<String> {
+    claim_content(&std::fs::read(path_of(cfg, cid)).ok()?)
+}
+
+/// Whether the corpus's objects hold a file for `cid`.
+#[must_use]
+pub fn held(cfg: &Config, cid: &str) -> bool {
+    path_of(cfg, cid).exists()
+}
+
 fn to_json(value: &Cbor) -> Value {
     match value {
         Cbor::Uint(n) => json!(n),
