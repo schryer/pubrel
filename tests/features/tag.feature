@@ -22,3 +22,11 @@ Feature: CI tags what was published, and only that
     Then it succeeds
     And it prints "not a published release"
     And no tag exists
+
+  Scenario: Release notes say how to install that release
+    Given a cargo package released at version "0.1.0"
+    And release.json says a release installs with "cargo install --locked demo --version {version} # from {tag}"
+    And the unreleased changes "fixed" pushed to main
+    When I run pubrel prepare
+    Then it succeeds
+    And the pull request's notes say "cargo install --locked demo --version 0.1.1 # from v0.1.1"

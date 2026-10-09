@@ -17,7 +17,7 @@
     "name": "pubrel",
     "check": "pubrel --version"
   },
-  "install": "cargo install --locked --git https://github.com/schryer/pubrel --tag {tag} pubrel",
+  "install": "cargo install --locked pubrel --version {version}",
   "key": "pub:sha2-256:tgaiwo4ow4sfqfopfr7vk3oqtnz5au2z74qzje7xbvvwgzwvx7fa",
   "security": {
     "checks": [
