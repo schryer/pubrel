@@ -41,11 +41,13 @@ usage: pubrel <command> [--package NAME]
                           and open a release PR
   changelog               regenerate each package's changelog from its publet
   tag                     CI on main: tag and release what was published
-  --version               this pubrel's version
+  --version, version      this pubrel's version
+  --help, -h, help        this text
 
 A repository whose release.json lists several `packages` names the one
-add, next and prepare act on with --package; check, changelog and tag act
-on every package.";
+add, summary and prepare act on with --package NAME (or --package=NAME).
+next reports every package unless one is named; check, changelog and tag
+act on every package.";
 
 fn main() -> ExitCode {
     let mut args: Vec<String> = std::env::args().skip(1).collect();
@@ -54,6 +56,10 @@ fn main() -> ExitCode {
     let result = match args.first().map(String::as_str) {
         Some("--version" | "version") => {
             println!("pubrel {}", env!("CARGO_PKG_VERSION"));
+            Ok(())
+        }
+        Some("--help" | "-h" | "help") => {
+            println!("{USAGE}");
             Ok(())
         }
         Some("init") => init(),

@@ -7,6 +7,14 @@
     {
       "category": "changed",
       "change": "pubrel is licensed under Apache-2.0, as publet is, instead of MIT, and the licence text ships as LICENSE."
+    },
+    {
+      "category": "fixed",
+      "change": "`pubrel --help` (and `-h`, `help`) prints the usage to stdout and succeeds; it failed as an unknown command, with the usage on stderr. The usage now lists `summary` among the commands --package applies to, and the --package=NAME and version spellings."
+    },
+    {
+      "category": "internal",
+      "change": "pubrel depends on publet-core 0.1.2 from crates.io instead of a git tag, and its manifest carries crates.io metadata and an include list, so it can be published there. Scenarios cover init, --version and --help."
     }
   ],
   "comment": "Changes not yet released. One row per change: category changed or removed (a published interface changed: major), added (a feature: minor), or fixed or security (patch). `pubrel add` appends one; `pubrel summary` sets the release's summary; `pubrel prepare` moves them into the package publet."
