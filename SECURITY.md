@@ -49,6 +49,8 @@ commands.
   repositories;
 - on a pull request, `pubrel check`, through pubrel's own release
   workflow built from the checkout.
+- the tests on a 32-bit (i686) and a big-endian (s390x) target, under
+  emulation, and a build on the minimum Rust version;
 - fuzzing of what `check` reads from a pull request: `release.json`,
   `unreleased.json`, the corpus lock and the manifests, with the version
   arithmetic (`fuzz/`). Every input that once found a bug is replayed
@@ -82,7 +84,3 @@ could make `check` crash. It is fixed, with a regression test.
 **In the code:** `unsafe` is forbidden (`unsafe_code = "forbid"` in
 `Cargo.toml`). Release builds keep integer overflow checks
 (`overflow-checks = true`).
-
-## What is not yet done
-
-- CI does not test on a 32-bit or a big-endian target.
