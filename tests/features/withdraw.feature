@@ -55,3 +55,21 @@ Feature: A release cut but never merged can be withdrawn
     When I run pubrel withdraw "feature"
     Then it fails
     And stderr mentions "adds no objects"
+
+  Scenario: Withdrawing a closed pull request deletes its branch, so the release can be cut again
+    Given main moves on with "fixed" "a second fix"
+    And the abandoned release is pull request 7 from "release/v0.1.1", "CLOSED"
+    When I run pubrel withdraw "7"
+    Then it succeeds
+    And it prints "deleted its branch release/v0.1.1 from origin and this clone"
+    And neither origin nor this clone has the branch "release/v0.1.1"
+    When I run pubrel prepare
+    Then it succeeds
+    And CHANGELOG.md has one section for "0.1.1"
+
+  Scenario: An open pull request is not withdrawn
+    Given the abandoned release is pull request 7 from "release/v0.1.1", "OPEN"
+    When I run pubrel withdraw "7"
+    Then it fails
+    And stderr mentions "pull request #7 is still open: close it, unmerged, then withdraw it"
+    And there is no .draft-discards
