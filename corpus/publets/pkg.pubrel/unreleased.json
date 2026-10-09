@@ -1,45 +1,4 @@
 {
-  "changes": [
-    {
-      "category": "internal",
-      "change": "Documentation brought towards pubkit's Rust crate standard by its rust-crate-quality agent: exact `# Errors` sections and docs for every item other modules use, `// covers:` comments on the unit tests, a README covering commands, why pubrel, related tools, versioning and its versioned interface, MSRV and security, and a new SECURITY.md."
-    },
-    {
-      "category": "changed",
-      "change": "pubrel is licensed under Apache-2.0, as publet is, instead of MIT, and the licence text ships as LICENSE."
-    },
-    {
-      "category": "fixed",
-      "change": "`pubrel --help` (and `-h`, `help`) prints the usage to stdout and succeeds; it failed as an unknown command, with the usage on stderr. The usage now lists `summary` among the commands --package applies to, and the --package=NAME and version spellings."
-    },
-    {
-      "category": "internal",
-      "change": "pubrel depends on publet-core 0.1.2 from crates.io instead of a git tag, and its manifest carries crates.io metadata and an include list, so it can be published there. Scenarios cover init, --version and --help."
-    },
-    {
-      "category": "fixed",
-      "change": "A version whose part to bump is already u64::MAX is refused with a message, instead of panicking: pubrel's release builds check for overflow, so a pull request could make `check` crash. Found by fuzzing."
-    },
-    {
-      "category": "internal",
-      "change": "What `check` reads from a pull request is fuzzed: release.json, unreleased.json, the corpus lock and the manifests with the version arithmetic. CI runs it on every change."
-    },
-    {
-      "category": "internal",
-      "change": "pubrel's dependencies are checked in CI and before each release: cargo deny (advisories, licences, sources) and cargo vet (audits imported from Mozilla, Google, the Bytecode Alliance, Zcash, ISRG and Embark Studios, trusted publishers, or exemptions with their evidence). SUPPLY-CHAIN.md ships in the package, and each release records the checks in a signed security claim."
-    },
-    {
-      "category": "fixed",
-      "change": "pubrel declared Rust 1.98, the toolchain it is developed with, though it builds on 1.88, the first release with stable `let` chains. It now declares 1.88, and CI builds it there."
-    },
-    {
-      "category": "internal",
-      "change": "CI builds pubrel on its minimum Rust version, runs the tests on 32-bit (i686) and big-endian (s390x) targets, and runs nightly, with longer fuzzing and the latest stable and beta Rust."
-    },
-    {
-      "category": "fixed",
-      "change": "A security check's recorded summary is the last line it printed to stdout. stdout and stderr were joined with stderr last, so a tool that warns on stderr after its summary, as cargo deny does for duplicate crates, had a warning recorded in place of its result. Facts and tool versions are read from stdout first too."
-    }
-  ],
+  "changes": [],
   "comment": "Changes not yet released. One row per change: category changed or removed (a published interface changed: major), added (a feature: minor), or fixed or security (patch). `pubrel add` appends one; `pubrel summary` sets the release's summary; `pubrel prepare` moves them into the package publet."
 }
