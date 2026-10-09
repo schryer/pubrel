@@ -27,8 +27,11 @@ fuzz-smoke: ## Replay fuzz regressions, then fuzz each target briefly (needs nig
 	    -max_total_time=$(FUZZ_SECONDS) -timeout=10 || exit 1; \
 	done
 
+# The verify build gets a target directory of its own. Sharing target/
+# leaves dep-info naming the packaged copy's sources, after which cargo
+# reports pubrel Fresh however src/ changes, and tests run a stale binary.
 publish-check: ## Package pubrel and verify it builds as published
-	$(CARGO) publish --dry-run --locked
+	CARGO_TARGET_DIR=$(CURDIR)/target/publish-check $(CARGO) publish --dry-run --locked
 
 supply-chain: ## Regenerate SUPPLY-CHAIN.md from supply-chain/
 	./tools/supply-chain-report.py pubrel

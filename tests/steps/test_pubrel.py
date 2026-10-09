@@ -21,6 +21,7 @@ scenarios("../features/security.feature")
 scenarios("../features/api.feature")
 scenarios("../features/summary.feature")
 scenarios("../features/cli.feature")
+scenarios("../features/withdraw.feature")
 
 
 # --- givens ------------------------------------------------------------------
@@ -633,3 +634,79 @@ def prints_version(result):
 @then("stderr is empty")
 def stderr_empty(result):
     assert result.stderr == "", result.stderr
+
+
+# --- withdrawing ---------------------------------------------------------------
+
+
+def objects_added(pkg, rev: str) -> set[str]:
+    out = pkg.git("diff", "--name-only", "--diff-filter=A", f"main...{rev}", "--", "corpus/objects")
+    return set(out.split())
+
+
+@given(parsers.parse('a release is cut and its branch abandoned as "{name}"'))
+def cut_and_abandon(pkg, name: str):
+    branch = pkg.cut()
+    pkg.git("branch", "-m", branch, name)
+    pkg.git("checkout", "-q", "main")
+
+
+@given(parsers.parse('main moves on with "{category}" "{change}"'))
+def main_moves(pkg, category: str, change: str):
+    pkg.add(category, change)
+    pkg.commit("record another change")
+    pkg.git("push", "-q", "origin", "main")
+
+
+@given(parsers.parse('pubrel withdraw "{which}" has run'))
+def withdrawn(pkg, which: str):
+    pkg.ok(str(pkg.pubrel), "withdraw", which)
+
+
+@given(parsers.parse('a branch "{name}" that changes only "{path}"'))
+def plain_branch(pkg, name: str, path: str):
+    pkg.git("checkout", "-q", "-b", name)
+    (pkg.root / path).write_text("// changed\n")
+    pkg.commit("a change")
+    pkg.git("checkout", "-q", "main")
+
+
+@when(parsers.parse('I run pubrel withdraw "{which}"'), target_fixture="result")
+def run_withdraw(pkg, which: str):
+    return pkg.pubrel_run("withdraw", which)
+
+
+@when("the release is cut again")
+def cut_again(pkg):
+    pkg.cut()
+
+
+@when("the abandoned branch's objects are added to the release branch")
+def add_abandoned(pkg):
+    files = sorted(objects_added(pkg, "abandoned"))
+    pkg.git("checkout", "abandoned", "--", *files)
+    pkg.commit("carry the abandoned release's objects")
+
+
+@then(".draft-discards is ignored by git")
+def discards_ignored(pkg):
+    assert (pkg.root / "corpus" / ".draft-discards").exists()
+    pkg.ok("git", "check-ignore", "-q", "corpus/.draft-discards")
+    assert pkg.git("status", "--porcelain") == ""
+
+
+@then(parsers.parse('CHANGELOG.md has one section for "{version}"'))
+def one_section(pkg, version: str):
+    log = (pkg.root / "CHANGELOG.md").read_text()
+    assert log.count(f"\n## {version} ") == 1, log
+
+
+@then("the release adds no object the abandoned branch added")
+def nothing_abandoned(pkg):
+    assert not objects_added(pkg, "HEAD") & objects_added(pkg, "abandoned")
+
+
+@then("pubrel check against main passes on the release branch")
+def release_checks(pkg):
+    proc = pkg.pubrel_run("check", "origin/main")
+    assert proc.returncode == 0, proc.stdout + proc.stderr

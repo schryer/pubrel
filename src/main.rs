@@ -17,6 +17,7 @@ mod published;
 mod record;
 mod security;
 mod version;
+mod withdraw;
 
 use std::fmt::Write as _;
 use std::path::Path;
@@ -39,6 +40,8 @@ usage: pubrel <command> [--package NAME]
                           is the bump its changes require, and published
   prepare [--no-pr]       cut a release: publish the package publet, commit,
                           and open a release PR
+  withdraw PR|BRANCH      after closing a release's pull request unmerged:
+                          keep pub from publishing its objects again
   changelog               regenerate each package's changelog from its publet
   tag                     CI on main: tag and release what was published
   --version, version      this pubrel's version
@@ -71,6 +74,16 @@ fn main() -> ExitCode {
             |base| check(base),
         ),
         Some("prepare") => prepare(!args.iter().any(|a| a == "--no-pr"), package),
+        Some("withdraw") => args.get(1).map_or_else(
+            || Err("usage: pubrel withdraw PR|BRANCH".to_owned()),
+            |which| {
+                let cfg = packages()?
+                    .into_iter()
+                    .next()
+                    .ok_or("release.json lists no package")?;
+                withdraw::withdraw(&cfg, which).map(|line| println!("{line}"))
+            },
+        ),
         Some("changelog") => changelog(),
         Some("tag") => tag(),
         _ => Err(USAGE.to_owned()),
@@ -428,6 +441,43 @@ fn check_release(cfg: &Config, base: &str) -> Result<Option<Version>, String> {
             .ok_or_else(|| missing_part(cfg, part))?;
         published::require_signed(cfg, &cid)?;
     }
+    // The release's own records name the commit it was cut from; any other
+    // record it adds belongs to another attempt at a release.
+    let identity = now_identity.as_deref().unwrap_or_default();
+    if let Some(commit) = published::content_of(cfg, identity)
+        .as_deref()
+        .and_then(withdraw::commit_named)
+    {
+        let objects = cfg.corpus.join("objects");
+        let added = run(
+            "git",
+            &[
+                "diff",
+                "--name-only",
+                "--diff-filter=A",
+                &format!("{base}...HEAD"),
+                "--",
+                &objects.to_string_lossy(),
+            ],
+            &cfg.root,
+        )?;
+        let cids: Vec<String> = added
+            .lines()
+            .filter_map(|p| Path::new(p).file_name()?.to_str()?.strip_suffix(".cbor"))
+            .map(|stem| stem.replace('_', ":"))
+            .collect();
+        let strays = withdraw::strays(cids.iter().map(String::as_str), commit, |cid| {
+            published::content_of(cfg, cid)
+        });
+        if !strays.is_empty() {
+            return Err(format!(
+                "this release also adds records of another attempt at a release:\n  {}\n\
+                 Close it, run `pubrel withdraw PR` for that attempt's pull request, and \
+                 prepare again",
+                strays.join("\n  ")
+            ));
+        }
+    }
     let previous = record::published_version(cfg, base_lock.as_deref())?;
     let published = record::published_version(cfg, now_lock.as_deref())?
         .ok_or("the package identity is recorded but states no version")?;
@@ -547,6 +597,7 @@ fn prepare(open_pr: bool, package: Option<&str>) -> Result<(), String> {
         "{}",
         record::run_pub(&cfg.corpus_dir(), &["publish", &cfg.package])?
     );
+    exported_cleanly(&cfg, &head)?;
     write_changelog(&cfg)?;
 
     run("git", &["add", "-A"], &cfg.root)?;
@@ -577,6 +628,54 @@ fn prepare(open_pr: bool, package: Option<&str>) -> Result<(), String> {
     )?;
     print!("{pr}");
     Ok(())
+}
+
+/// After `pub publish`: every claim this release records is in `objects/`,
+/// and nothing exported records another attempt at a release. `pub`'s
+/// store keeps the objects of a release that was cut but never merged,
+/// and exports them again unless they are withdrawn.
+fn exported_cleanly(cfg: &Config, head: &str) -> Result<(), String> {
+    let lock = lock_text(cfg);
+    for part in record_parts(cfg, lock.as_deref()) {
+        let slug = format!("{}#{part}", cfg.package);
+        let cid = record::locked(lock.as_deref(), &slug).ok_or_else(|| missing_part(cfg, part))?;
+        if !published::held(cfg, &cid) {
+            return Err(format!(
+                "{slug} was published as {cid}, but it is not in objects/. It reproduces an \
+                 object listed in {}/.draft-discards; remove that line and prepare again",
+                cfg.corpus.display()
+            ));
+        }
+    }
+    let objects = cfg.corpus.join("objects");
+    let new = run(
+        "git",
+        &[
+            "ls-files",
+            "--others",
+            "--exclude-standard",
+            "--",
+            &objects.to_string_lossy(),
+        ],
+        &cfg.root,
+    )?;
+    let cids: Vec<String> = new
+        .lines()
+        .filter_map(|p| Path::new(p).file_name()?.to_str()?.strip_suffix(".cbor"))
+        .map(|stem| stem.replace('_', ":"))
+        .collect();
+    let strays = withdraw::strays(cids.iter().map(String::as_str), head, |cid| {
+        published::content_of(cfg, cid)
+    });
+    if strays.is_empty() {
+        return Ok(());
+    }
+    Err(format!(
+        "pub exported records of another attempt at a release, which its store still holds:\n  \
+         {}\nUndo this attempt as shown above, then run `pubrel withdraw PR` for the release's \
+         closed pull request (or its branch), and prepare again",
+        strays.join("\n  ")
+    ))
 }
 
 /// Set `cfg`'s manifest to `release`. Crates released with versions of
