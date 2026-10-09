@@ -732,3 +732,19 @@ def branch_gone(pkg, branch: str):
 @then("there is no .draft-discards")
 def no_discards(pkg):
     assert not (pkg.root / "corpus" / ".draft-discards").exists()
+
+
+@given(parsers.parse('release.json says a release installs with "{command}"'))
+def install_command(pkg, command: str):
+    path = pkg.root / "release.json"
+    config = json.loads(path.read_text())
+    config["install"] = command
+    path.write_text(json.dumps(config, indent=2))
+    pkg.commit("say how a release installs")
+    pkg.git("push", "-q", "origin", "main")
+
+
+@then(parsers.parse('the pull request\'s notes say "{text}"'))
+def notes_say(pkg, text: str):
+    log = pkg.gh_log.read_text()
+    assert "pr\x1fcreate" in log and text in log, log

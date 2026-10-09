@@ -716,7 +716,9 @@ fn notes(cfg: &Config, release: &Version) -> Result<String, String> {
         let _ = write!(
             text,
             "Install:\n\n```\n{}\n```\n",
-            install.replace("{tag}", &cfg.git_tag(release))
+            install
+                .replace("{tag}", &cfg.git_tag(release))
+                .replace("{version}", &release.to_string())
         );
     }
     Ok(text)

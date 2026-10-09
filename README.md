@@ -151,6 +151,10 @@ workspace bump never moves the pin of a crate released on its own, even
 when their versions coincide. That crate's own release pins its new version
 in the workspace.
 
+`install`, optional, is how a release is installed: release notes show it,
+with `{tag}` replaced by the release's git tag and `{version}` by its
+version.
+
 Manifest kinds: `cargo-workspace` (the workspace version and every internal
 path dependency pinned at it), `cargo-package`, and `pyproject`. `command`
 is optional, and a library has none.
@@ -263,11 +267,12 @@ pubrel builds on these rather than reimplementing them:
 
 ## Installation
 
-pubrel is not on crates.io yet. Install a release from its git tag:
-
 ```sh
-cargo install --locked --git https://github.com/schryer/pubrel --tag vX.Y.Z pubrel
+cargo install --locked pubrel
 ```
+
+Each GitHub release also names its own version
+(`cargo install --locked pubrel --version X.Y.Z`).
 
 Cutting a release (`pubrel prepare`) drives a released `pub` (^0.1) to
 build and publish the package publet, which signs it. That happens on the
