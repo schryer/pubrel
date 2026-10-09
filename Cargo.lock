@@ -207,8 +207,9 @@ dependencies = [
 
 [[package]]
 name = "publet-core"
-version = "0.1.1"
-source = "git+https://github.com/schryer/publet?tag=v0.1.1#4523d523e487002205daaee16eb1de3c8ca26780"
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "180eb9b73fb4845a61e77771f920b3054d05b8545029620df9045955e32621f5"
 dependencies = [
  "ed25519-dalek",
  "sha2",

@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 import json
+import os
+import subprocess
+from pathlib import Path
 
 from pytest_bdd import given, parsers, scenarios, then, when
 
@@ -17,6 +20,7 @@ scenarios("../features/multi.feature")
 scenarios("../features/security.feature")
 scenarios("../features/api.feature")
 scenarios("../features/summary.feature")
+scenarios("../features/cli.feature")
 
 
 # --- givens ------------------------------------------------------------------
@@ -560,3 +564,64 @@ def no_unreleased_summary(pkg):
 def no_summary(pkg):
     lock = json.loads((pkg.root / "corpus" / "corpus.lock").read_text())
     assert not any(r["slug"] == "pkg.demo#summary" for r in lock["publets"])
+
+
+# --- starting out ----------------------------------------------------------------
+
+
+class FreshRepo:
+    """A git repository with only a Cargo.toml: what `pubrel init` starts from."""
+
+    def __init__(self, root: Path, pubrel: Path):
+        self.root = root
+        self.pubrel = pubrel
+        self.env = dict(os.environ)
+
+    def pubrel_run(self, *args: str) -> subprocess.CompletedProcess:
+        return subprocess.run([str(self.pubrel), *args], cwd=self.root, env=self.env,
+                              capture_output=True, text=True, check=False)
+
+    def unreleased(self, package: str = "pkg.demo") -> list[dict]:
+        path = self.root / "corpus" / "publets" / package / "unreleased.json"
+        return json.loads(path.read_text())["changes"]
+
+
+@given(parsers.parse('a fresh cargo repository named "{name}"'), target_fixture="pkg")
+def fresh_repo(tmp_path, binary, name: str):
+    root = tmp_path / name
+    root.mkdir()
+    subprocess.run(["git", "init", "-q", "-b", "main"], cwd=root, check=True)
+    (root / "Cargo.toml").write_text(
+        f'[package]\nname = "{name}"\nversion = "0.1.0"\nedition = "2024"\n')
+    return FreshRepo(root, binary("pubrel"))
+
+
+@given(parsers.parse('pubrel "{args}" has run'))
+def has_run(pkg, args: str):
+    proc = pkg.pubrel_run(*args.split())
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+
+
+@when(parsers.parse('I run pubrel "{args}"'), target_fixture="result")
+def run_pubrel(pkg, args: str):
+    return pkg.pubrel_run(*args.split())
+
+
+@then(parsers.parse('release.json names the package "{name}" as "{slug}" with a "{kind}" manifest at "{path}"'))
+def release_json_names(pkg, name: str, slug: str, kind: str, path: str):
+    config = json.loads((pkg.root / "release.json").read_text())
+    assert (config["name"], config["package"]) == (name, slug), config
+    assert config["manifest"] == {"kind": kind, "path": path}, config
+
+
+@then("it prints this pubrel's version as \"pubrel X.Y.Z\"")
+def prints_version(result):
+    import tomllib
+    manifest = Path(__file__).resolve().parents[2] / "Cargo.toml"
+    version = tomllib.loads(manifest.read_text())["package"]["version"]
+    assert result.stdout.strip() == f"pubrel {version}", result.stdout
+
+
+@then("stderr is empty")
+def stderr_empty(result):
+    assert result.stderr == "", result.stderr

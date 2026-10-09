@@ -44,11 +44,13 @@ Merging it is the release: CI tags it.
 | `changelog` | Regenerates each package's changelog from its package publet. |
 | `tag` | For CI on main: for each package whose manifest version is published and not yet tagged, creates the tag and the GitHub release. |
 | `--version` | Prints `pubrel X.Y.Z`. |
+| `--help` | Prints the usage. |
 
 When `release.json` lists several packages, `--package NAME` (or
 `--package=NAME`) names the one that `add`, `summary` and `prepare` act on.
-`next` without it reports every package. `pubrel --help`, like any unknown
-command, prints the usage.
+`next` without it reports every package. `pubrel --help` (or `-h`, or
+`help`) prints the usage to stdout. An unknown command prints it to
+stderr, and fails.
 
 ## The rules
 
@@ -228,7 +230,7 @@ pubrel builds on these rather than reimplementing them:
 | Crate | Version | What pubrel uses it for |
 |---|---|---|
 | [cargo-semver-checks](https://crates.io/crates/cargo-semver-checks) | 0.51.0 | Run as a tool, to compare a crate's API with its last release. |
-| [`publet-core`](https://github.com/schryer/publet/tree/main/crates/publet-core) | 0.1.1 (git tag `v0.1.1`) | Canonical CBOR, content identifiers and Ed25519, to read the package publet back and verify its signatures. |
+| [`publet-core`](https://crates.io/crates/publet-core) | 0.1.2 | Canonical CBOR, content identifiers and Ed25519, to read the package publet back and verify its signatures. |
 | [`semver`](https://crates.io/crates/semver) | 1 | Versions, and the `^0.1` requirement on `pub`. |
 | [`toml_edit`](https://crates.io/crates/toml_edit) | 0.22 | Setting a manifest's version, keeping its comments and layout. |
 | [`serde_json`](https://crates.io/crates/serde_json) | 1 | `release.json`, `unreleased.json` and the corpus lock. |
