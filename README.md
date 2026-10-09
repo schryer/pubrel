@@ -286,10 +286,12 @@ any of the following is recorded as `changed` or `removed`:
 
 ## Minimum Rust version
 
-pubrel builds on Rust 1.98 (`rust-version` in `Cargo.toml`). The
-repository pins Rust 1.98.1 in `rust-toolchain.toml`, and CI builds with
-it. The minimum may rise in a release that bumps the minor version, never
-in a patch release.
+pubrel builds on Rust 1.88 (`rust-version` in `Cargo.toml`), the first
+release where `let` chains are stable. CI builds it there, and every
+release from 1.88 to 1.99 was checked when it was set. The repository
+develops on the Rust that `rust-toolchain.toml` pins, and a scheduled run
+tests the latest stable and beta. The minimum may rise in a release that
+bumps the minor version, never in a patch release.
 
 ## Security
 

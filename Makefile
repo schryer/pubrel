@@ -7,7 +7,7 @@ export PUBREL_BIN_DIR ?= $(CURDIR)/target/debug
 # The released pub the suite drives; override to point elsewhere.
 export PUB_BIN_DIR ?= $(dir $(shell command -v pub 2>/dev/null || echo $(HOME)/.cargo/bin/pub))
 
-.PHONY: check clean fuzz-smoke deny vet supply-chain supply-chain-check publish-check
+.PHONY: check clean fuzz-smoke deny vet supply-chain supply-chain-check publish-check msrv
 
 check: sync-check fmt-check lint test doc functional publish-check supply-chain-check vet deny ## Everything CI runs
 
@@ -41,3 +41,9 @@ vet: ## Every dependency is audited, trusted, or exempt with its evidence
 
 deny: ## Licence and advisory audit
 	$(CARGO) deny --locked check
+
+# The oldest Rust pubrel promises: its rust-version. CI passes MSRV.
+MSRV ?= $(shell sed -n 's/^rust-version = "\(.*\)"/\1/p' Cargo.toml)
+
+msrv: ## Build on the minimum Rust version (rustup toolchain install $(MSRV))
+	$(CARGO) +$(MSRV) check --locked
