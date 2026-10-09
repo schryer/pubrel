@@ -69,17 +69,22 @@ fn cids_of(paths: &str) -> Vec<String> {
 }
 
 /// Withdraw the release `which` names: a pull request number (`23`, `#23`),
-/// fetched from `origin`, or any git revision, such as a release branch.
+/// fetched from `origin`, or any git revision, such as a release branch. A
+/// pull request must be closed and unmerged, and its branch is then
+/// deleted, from `origin` and from this clone, unless it is a fork's.
 ///
 /// # Errors
 ///
-/// Returns a message if the revision cannot be resolved, is already part of
+/// Returns a message if a pull request is open or merged, or `gh` cannot
+/// describe it; if the revision cannot be resolved, is already part of
 /// this branch's history, adds no objects, or adds no release record; or
 /// if `.draft-discards` or git's exclude file cannot be written.
 pub fn withdraw(cfg: &Config, which: &str) -> Result<String, String> {
     let root = &cfg.root;
-    let rev = match which.trim_start_matches('#').parse::<u64>() {
-        Ok(number) => {
+    let number = which.trim_start_matches('#').parse::<u64>().ok();
+    let pr = number.map(|n| pull_request(root, n)).transpose()?;
+    let rev = match number {
+        Some(number) => {
             let reference = format!("refs/pubrel/withdrawn/{number}");
             git(
                 root,
@@ -92,7 +97,7 @@ pub fn withdraw(cfg: &Config, which: &str) -> Result<String, String> {
             )?;
             reference
         }
-        Err(_) => which.to_owned(),
+        None => which.to_owned(),
     };
     let commit = git(
         root,
@@ -151,12 +156,102 @@ pub fn withdraw(cfg: &Config, which: &str) -> Result<String, String> {
         .to_string_lossy()
         .into_owned();
     keep_out_of_git(root, &rel)?;
+    let removed = match &pr {
+        Some(pr) if !pr.fork => remove_branch(root, &pr.branch)?,
+        _ => String::new(),
+    };
     Ok(format!(
         "withdrew {which} ({record}): {} object(s) listed in {rel}, {} of them already; \
-         pub will not export them again",
+         pub will not export them again{removed}",
         added.len(),
         added.len() - fresh
     ))
+}
+
+/// What `gh` says of a pull request.
+struct PullRequest {
+    branch: String,
+    /// Whether its branch lives in another repository, which is not ours
+    /// to delete.
+    fork: bool,
+}
+
+/// The pull request `number`, which must be closed and unmerged.
+fn pull_request(root: &Path, number: u64) -> Result<PullRequest, String> {
+    let out = Command::new("gh")
+        .args([
+            "pr",
+            "view",
+            &number.to_string(),
+            "--json",
+            "state,headRefName,isCrossRepository",
+        ])
+        .current_dir(root)
+        .output()
+        .map_err(|e| format!("cannot run gh to look up pull request #{number}: {e}"))?;
+    let json: serde_json::Value = serde_json::from_slice(&out.stdout).map_err(|_| {
+        format!(
+            "gh could not describe pull request #{number}: {}",
+            String::from_utf8_lossy(&out.stderr).trim()
+        )
+    })?;
+    let text = |k: &str| {
+        json.get(k)
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or_default()
+    };
+    match text("state") {
+        "CLOSED" => Ok(PullRequest {
+            branch: text("headRefName").to_owned(),
+            fork: json
+                .get("isCrossRepository")
+                .and_then(serde_json::Value::as_bool)
+                .unwrap_or(true),
+        }),
+        "MERGED" => Err(format!(
+            "pull request #{number} is merged: a merged release cannot be withdrawn"
+        )),
+        "OPEN" => Err(format!(
+            "pull request #{number} is still open: close it, unmerged, then withdraw it"
+        )),
+        other => Err(format!(
+            "pull request #{number} is in a state pubrel does not know: {other:?}"
+        )),
+    }
+}
+
+/// Delete a withdrawn release's branch from `origin` and from this clone,
+/// where it still exists, so the next release can use its name; say what
+/// was deleted. The objects are already discarded, and the pull request
+/// keeps its commits.
+fn remove_branch(root: &Path, branch: &str) -> Result<String, String> {
+    if branch.is_empty() {
+        return Ok(String::new());
+    }
+    let mut removed = Vec::new();
+    if git(
+        root,
+        &["ls-remote", "--exit-code", "--heads", "origin", branch],
+    )
+    .is_ok()
+    {
+        git(root, &["push", "-q", "origin", "--delete", branch])?;
+        removed.push("origin");
+    }
+    let local = format!("refs/heads/{branch}");
+    let current = git(root, &["symbolic-ref", "-q", "HEAD"]).unwrap_or_default();
+    if current != local && git(root, &["show-ref", "--verify", "-q", &local]).is_ok() {
+        git(root, &["branch", "-q", "-D", branch])?;
+        removed.push("this clone");
+    }
+    Ok(if removed.is_empty() {
+        String::new()
+    } else {
+        format!(
+            "; deleted its branch {branch} from {}",
+            removed.join(" and ")
+        )
+    })
 }
 
 /// Add each of `cids` not already listed to the discards file at `path`,

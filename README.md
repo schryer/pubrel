@@ -93,7 +93,10 @@ pubrel prepare                  # from main, as usual
 `pubrel withdraw` lists every object that release added in
 `corpus/.draft-discards`, which `pub` never exports. It keeps that file out
 of git through the clone's own exclude file. It refuses a release that is
-already merged, and a branch that adds no release record. As a backstop,
+already merged, and a branch that adds no release record. Given a pull
+request number, it asks `gh` for its state: an open pull request must be
+closed first. It then deletes the release branch from `origin` and from
+this clone, unless it is a fork's, so the next release can use the name. As a backstop,
 `prepare` and `check` refuse a release that carries records naming any
 other commit, and `prepare` says so when a release cut again unchanged
 reproduces a withdrawn object.

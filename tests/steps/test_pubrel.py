@@ -710,3 +710,25 @@ def nothing_abandoned(pkg):
 def release_checks(pkg):
     proc = pkg.pubrel_run("check", "origin/main")
     assert proc.returncode == 0, proc.stdout + proc.stderr
+
+
+@given(parsers.parse('the abandoned release is pull request {number:d} from "{branch}", "{state}"'))
+def abandoned_pr(pkg, number: int, branch: str, state: str):
+    # As GitHub holds it: the branch, and the pull request's own ref. The
+    # clone keeps a local branch of that name too, as prepare leaves one.
+    pkg.git("push", "-q", "origin", f"abandoned:refs/heads/{branch}",
+            f"abandoned:refs/pull/{number}/head")
+    pkg.git("branch", branch, "abandoned")
+    (pkg.tmp / "gh-pr-view.json").write_text(json.dumps(
+        {"state": state, "headRefName": branch, "isCrossRepository": False}))
+
+
+@then(parsers.parse('neither origin nor this clone has the branch "{branch}"'))
+def branch_gone(pkg, branch: str):
+    assert pkg.git("ls-remote", "--heads", "origin", branch) == ""
+    assert pkg.git("branch", "--list", branch) == ""
+
+
+@then("there is no .draft-discards")
+def no_discards(pkg):
+    assert not (pkg.root / "corpus" / ".draft-discards").exists()

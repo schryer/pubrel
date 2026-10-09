@@ -25,6 +25,7 @@ import pytest
 GH = """#!/bin/sh
 printf '%s\\037' "$@" >> "$GH_LOG"
 printf '\\n' >> "$GH_LOG"
+if [ "$1 $2" = "pr view" ]; then cat "$GH_PR_VIEW"; exit; fi
 echo "https://example.org/fake/1"
 """
 
@@ -67,6 +68,7 @@ class Package:
             os.environ,
             PATH=f"{self.fake}{os.pathsep}{pub_dir}{os.pathsep}{os.environ['PATH']}",
             GH_LOG=str(self.gh_log),
+            GH_PR_VIEW=str(tmp / "gh-pr-view.json"),
             GIT_AUTHOR_NAME="Test", GIT_AUTHOR_EMAIL="test@example.org",
             GIT_COMMITTER_NAME="Test", GIT_COMMITTER_EMAIL="test@example.org",
         )
