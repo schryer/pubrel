@@ -3,8 +3,8 @@
   "corpus": {
     "domain": "pub:sha2-256:p4lcyk4y6nkxh45hy5bbytulizhq3m3nsyrn6xgz2vxbog5jeidq",
     "generation": {
-      "cid": "pub:sha2-256:c2gbl5dotyxnifjz2fwv2jhy4ygm2jiaxe2ism6efdrflbchaitq",
-      "index": 6
+      "cid": "pub:sha2-256:toem5z5by6pyilgqlvulgplf7s2mi7cquauzpfolfomi4ptqcfjq",
+      "index": 7
     },
     "imports": {},
     "key": "pub:sha2-256:tgaiwo4ow4sfqfopfr7vk3oqtnz5au2z74qzje7xbvvwgzwvx7fa",
@@ -18,8 +18,9 @@
     ]
   },
   "publets": [
-    {"slug": "pkg.pubrel", "kind": "doc", "tag": "PKG-PUBREL-10-2026", "source": "publets/pkg.pubrel", "cid": "pub:sha2-256:xz7vnqqhbmar3nwf4qqw37uovudrfmfd4usubyiuvs7i4z7wajzq", "genesis": "pub:sha2-256:jmjdmxh3z4tkpufbxwb4alngilnygxprm55dsaeu6kfchckkyeza", "deps": ["pkg.pubrel#identity", "pkg.pubrel#release"]},
-    {"slug": "pkg.pubrel#identity", "kind": "claim", "source": "publets/pkg.pubrel", "cid": "pub:sha2-256:if7qjh7cp7suorij4ebkqesxmdhafzt7zwpornugmp533fyn7ypa", "genesis": "pub:sha2-256:42jmd6dgzu3u4vegqqn4rmx7egc7gwh7xeqnaewkkor5onxsn4ea", "deps": []},
-    {"slug": "pkg.pubrel#release", "kind": "claim", "source": "publets/pkg.pubrel", "cid": "pub:sha2-256:lvoe5aibqydpyqkxh6qeyi5k5bdx36xjnudify3wuuluiuczwk4a", "genesis": "pub:sha2-256:t37ooqouiswnhe5mjojl7dsnhicfcfz456ayewr5njai42fzrbfa", "deps": ["pkg.pubrel#identity"]}
+    {"slug": "pkg.pubrel", "kind": "doc", "tag": "PKG-PUBREL-10-2026", "source": "publets/pkg.pubrel", "cid": "pub:sha2-256:qu7x6u2vcholyv5yevwplnppv4mjfiia5xj52lrufiblr2us7ddq", "genesis": "pub:sha2-256:jmjdmxh3z4tkpufbxwb4alngilnygxprm55dsaeu6kfchckkyeza", "deps": ["pkg.pubrel#identity", "pkg.pubrel#release", "pkg.pubrel#security"]},
+    {"slug": "pkg.pubrel#identity", "kind": "claim", "source": "publets/pkg.pubrel", "cid": "pub:sha2-256:3dqa5xb4w646r6u6oihwq3mu3xnfiq4ghpn542phgjgxhbhfwdva", "genesis": "pub:sha2-256:42jmd6dgzu3u4vegqqn4rmx7egc7gwh7xeqnaewkkor5onxsn4ea", "deps": []},
+    {"slug": "pkg.pubrel#release", "kind": "claim", "source": "publets/pkg.pubrel", "cid": "pub:sha2-256:zabmdlnao5m4relf7pq6s4ctnrf74nudgibggutymvhyesjrwfba", "genesis": "pub:sha2-256:t37ooqouiswnhe5mjojl7dsnhicfcfz456ayewr5njai42fzrbfa", "deps": ["pkg.pubrel#identity"]},
+    {"slug": "pkg.pubrel#security", "kind": "claim", "source": "publets/pkg.pubrel", "cid": "pub:sha2-256:bpvm6emxuplxliyqcgzvqw4b4ywc2dtindwjgbnuewp52xs7sdxq", "genesis": "pub:sha2-256:bpvm6emxuplxliyqcgzvqw4b4ywc2dtindwjgbnuewp52xs7sdxq", "deps": ["pkg.pubrel#identity"]}
   ]
 }
