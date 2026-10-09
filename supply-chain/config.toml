@@ -1,0 +1,138 @@
+
+# cargo-vet config file
+
+[cargo-vet]
+version = "0.10"
+
+[imports.bytecode-alliance]
+url = "https://raw.githubusercontent.com/bytecodealliance/wasmtime/main/supply-chain/audits.toml"
+
+[imports.embark-studios]
+url = "https://raw.githubusercontent.com/EmbarkStudios/rust-ecosystem/main/audits.toml"
+
+[imports.google]
+url = "https://raw.githubusercontent.com/google/supply-chain/main/audits.toml"
+
+[imports.isrg]
+url = "https://raw.githubusercontent.com/divviup/libprio-rs/main/supply-chain/audits.toml"
+
+[imports.mozilla]
+url = "https://raw.githubusercontent.com/mozilla/supply-chain/main/audits.toml"
+
+[imports.zcash]
+url = "https://raw.githubusercontent.com/zcash/rust-ecosystem/main/supply-chain/audits.toml"
+
+[[exemptions.base64ct]]
+version = "1.8.3"
+criteria = "safe-to-deploy"
+notes = "Locked but never built: reached only through ed25519's optional pkcs8 support, which publet-core does not enable. No full audit in the imported sets as of 2026-10-09; Zcash's safe-to-deploy deltas reach 1.8.0."
+
+[[exemptions.cfg-if]]
+version = "1.0.5"
+criteria = "safe-to-deploy"
+notes = "Imported audits as of 2026-10-09 reach 1.0.4 (full audits by Google and the Bytecode Alliance, deltas by ISRG); the 1.0.4 to 1.0.5 diff is not audited in any imported set."
+
+[[exemptions.const-oid]]
+version = "0.9.6"
+criteria = "safe-to-deploy"
+notes = "Locked but never built: reached only through ed25519's optional pkcs8 support, which publet-core does not enable. No audit in the imported sets as of 2026-10-09."
+
+[[exemptions.cpufeatures]]
+version = "0.2.17"
+criteria = "safe-to-deploy"
+notes = "No full audit in any cargo-vet registry set as of 2026-10-05; Zcash published safe-to-deploy deltas from 0.2.2 to 0.2.14, short of this version."
+
+[[exemptions.crypto-common]]
+version = "0.1.7"
+criteria = "safe-to-deploy"
+notes = "Imported audits cover up to 0.1.6; the 0.1.6 to 0.1.7 diff (manifest only) awaits review by the maintainer."
+
+[[exemptions.curve25519-dalek]]
+version = "4.1.3"
+criteria = "safe-to-deploy"
+notes = "Zcash published crypto-reviewed, safe-to-deploy deltas for every release from 4.1.0 to this one (4.1.3), but no registry set has a full audit of 4.1.0; Google audited 4.0.0 for undefined-behaviour risk only. As of 2026-10-05."
+
+[[exemptions.curve25519-dalek-derive]]
+version = "0.1.1"
+criteria = "safe-to-deploy"
+notes = "Google audited 0.1.0 (ub-risk-3, does-not-implement-crypto) and Zcash published a crypto-reviewed delta 0.1.0 to 0.1.1, but no registry set audits 0.1.0 as safe-to-deploy. As of 2026-10-05."
+
+[[exemptions.digest]]
+version = "0.10.7"
+criteria = "safe-to-deploy"
+notes = "Imported deltas chain from 0.9.0 to this version (Bytecode Alliance 0.9.0 to 0.10.3, Mozilla to 0.10.6, ISRG to 0.10.7), but no registry set has a full audit of 0.9.0. As of 2026-10-05."
+
+[[exemptions.ed25519]]
+version = "2.2.3"
+criteria = "safe-to-deploy"
+notes = "Zcash published crypto-reviewed deltas 2.2.1 to 2.2.3, but no registry set has a full audit of 2.2.1. As of 2026-10-05."
+
+[[exemptions.ed25519-dalek]]
+version = "2.2.0"
+criteria = "safe-to-deploy"
+notes = "No audit of any version in any cargo-vet registry set as of 2026-10-05."
+
+[[exemptions.generic-array]]
+version = "0.14.7"
+criteria = "safe-to-deploy"
+notes = "Google audited this version as safe-to-run (not safe-to-deploy); Mozilla and Zcash published safe-to-deploy deltas 0.14.5 to 0.14.7 without a full base audit. As of 2026-10-05."
+
+[[exemptions.getrandom]]
+version = "0.2.17"
+criteria = "safe-to-deploy"
+notes = "Locked but never built: rand_core's optional getrandom support, which nothing enables. No full audit in the imported sets as of 2026-10-09; Zcash's safe-to-deploy deltas reach 0.2.16."
+
+[[exemptions.hashbrown]]
+version = "0.17.1"
+criteria = "safe-to-deploy"
+notes = "Mozilla audits the deltas from 0.16.0 up to this version, but in the imported sets as of 2026-10-09 the chain from a full audit stops at 0.14.0."
+
+[[exemptions.indexmap]]
+version = "2.14.2"
+criteria = "safe-to-deploy"
+notes = "Imported audits as of 2026-10-09 reach 2.14.0 (Google, Mozilla, Zcash); the 2.14.0 to 2.14.2 diff is not audited in any imported set."
+
+[[exemptions.libc]]
+version = "0.2.190"
+criteria = "safe-to-deploy"
+notes = "Built only on targets where cpufeatures needs it (aarch64 Linux, for sha2), not on x86_64. No full audit in the imported sets as of 2026-10-09; Mozilla's safe-to-deploy deltas reach 0.2.176."
+
+[[exemptions.memchr]]
+version = "2.8.3"
+criteria = "safe-to-deploy"
+notes = "No full audit in the imported sets as of 2026-10-09; Zcash's safe-to-deploy deltas reach 2.7.5."
+
+[[exemptions.pkcs8]]
+version = "0.10.2"
+criteria = "safe-to-deploy"
+notes = "Locked but never built: ed25519's optional pkcs8 support, which publet-core does not enable. No audit in the imported sets as of 2026-10-09."
+
+[[exemptions.spki]]
+version = "0.7.3"
+criteria = "safe-to-deploy"
+notes = "Locked but never built: reached only through ed25519's optional pkcs8 support, which publet-core does not enable. No audit in the imported sets as of 2026-10-09."
+
+[[exemptions.tinyvec]]
+version = "1.13.3"
+criteria = "safe-to-deploy"
+notes = "Imported audits as of 2026-10-09 reach 1.9.0 (Google, the Bytecode Alliance); later versions are not audited in any imported set."
+
+[[exemptions.typenum]]
+version = "1.20.1"
+criteria = "safe-to-deploy"
+notes = "Mozilla and Zcash published safe-to-deploy deltas 1.15.0 to 1.17.0; nothing covers 1.17.0 to this version, and no set has a full audit. Most of the crate is generated code. As of 2026-10-05."
+
+[[exemptions.version_check]]
+version = "0.9.5"
+criteria = "safe-to-deploy"
+notes = "Google audited 0.9.4 as safe-to-deploy; the 0.9.4 to 0.9.5 diff (documentation only) awaits review by the maintainer."
+
+[[exemptions.wasi]]
+version = "0.11.1+wasi-snapshot-preview1"
+criteria = "safe-to-deploy"
+notes = "Locked but never built: reached only through getrandom (also never built), and only on WASI targets. No full audit in the imported sets as of 2026-10-09; Zcash audits the delta to this version."
+
+[[exemptions.zeroize]]
+version = "1.9.0"
+criteria = "safe-to-deploy"
+notes = "Mozilla audited 1.8.1 as safe-to-deploy and Zcash the delta to 1.8.2; the 1.8.2 to 1.9.0 diff is unreviewed. As of 2026-10-05."

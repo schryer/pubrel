@@ -7,9 +7,9 @@ export PUBREL_BIN_DIR ?= $(CURDIR)/target/debug
 # The released pub the suite drives; override to point elsewhere.
 export PUB_BIN_DIR ?= $(dir $(shell command -v pub 2>/dev/null || echo $(HOME)/.cargo/bin/pub))
 
-.PHONY: check clean fuzz-smoke
+.PHONY: check clean fuzz-smoke deny vet supply-chain supply-chain-check publish-check
 
-check: sync-check fmt-check lint test doc functional ## Everything CI runs
+check: sync-check fmt-check lint test doc functional publish-check supply-chain-check vet deny ## Everything CI runs
 
 clean: ## Remove build artifacts
 	cargo clean
@@ -26,3 +26,18 @@ fuzz-smoke: ## Replay fuzz regressions, then fuzz each target briefly (needs nig
 	  cargo +nightly fuzz run $$target corpus/$$target regressions/$$target -- \
 	    -max_total_time=$(FUZZ_SECONDS) -timeout=10 || exit 1; \
 	done
+
+publish-check: ## Package pubrel and verify it builds as published
+	$(CARGO) publish --dry-run --locked
+
+supply-chain: ## Regenerate SUPPLY-CHAIN.md from supply-chain/
+	./tools/supply-chain-report.py pubrel
+
+supply-chain-check: ## Fail if the committed SUPPLY-CHAIN.md is stale
+	./tools/supply-chain-report.py --check pubrel
+
+vet: ## Every dependency is audited, trusted, or exempt with its evidence
+	cargo vet --locked
+
+deny: ## Licence and advisory audit
+	$(CARGO) deny --locked check

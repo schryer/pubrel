@@ -296,6 +296,8 @@ in a patch release.
 Report a vulnerability privately, through the repository's Security tab
 ("Report a vulnerability"). [`SECURITY.md`](SECURITY.md) says how, and
 describes what is checked and what is not.
+[`SUPPLY-CHAIN.md`](SUPPLY-CHAIN.md) lists every crate pubrel builds, and
+how each is vouched for.
 
 ## Developing
 

@@ -15,11 +15,22 @@ jobs:
       pub-version: v0.1.1
       fuzz: true
 
+  # Advisories, licences and sources (cargo deny), and every dependency
+  # audited, trusted or exempt with its evidence (cargo vet).
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - run: cargo install --locked cargo-deny --version 0.20.2
+      - run: make deny
+      - run: cargo install --locked cargo-vet --version 0.10.2
+      - run: make vet
+
   # pubrel is held to its own rules, by its own workflow, built from this
   # checkout -- so a change to the workflow is tested before a release
   # carries it to anyone else.
   release:
-    needs: ci
+    needs: [ci, audit]
     uses: ./.github/workflows/release.yml
     permissions:
       contents: write

@@ -54,6 +54,26 @@ commands.
   arithmetic (`fuzz/`). Every input that once found a bug is replayed
   first (`fuzz/regressions/`).
 
+- `cargo deny check`: fails on any crate in the dependency tree with a
+  RustSec advisory (vulnerable, unmaintained, unsound, or yanked), on a
+  licence outside the permissive list, and on any source but crates.io
+  (`deny.toml`).
+- `cargo vet`: every dependency is covered by an audit imported from
+  Mozilla, Google, the Bytecode Alliance, Zcash, ISRG or Embark Studios, by
+  a publisher those organisations trust, or by an exemption that records
+  the evidence that does exist (`supply-chain/`). publet-core is trusted as
+  this project's own crate.
+
+**In the package:** [`SUPPLY-CHAIN.md`](SUPPLY-CHAIN.md) lists every crate
+pubrel builds, for any target, whether it runs code at build time, and how
+it is vouched for. It is generated, and CI fails if it is stale.
+
+**In every release:** `pubrel prepare` runs `cargo deny`, `cargo vet` and
+the report's check before cutting a release, and records them as a signed
+`security` claim in pubrel's package publet: each command, its tool and
+version, and its summary, beside the RustSec database revision and the
+audit sets imported. The changelog and the GitHub release list it.
+
 **Fuzzing found** one bug before pubrel was published: bumping a version
 whose part to bump was already `u64::MAX` panicked, where it should
 refuse. Overflow is checked in pubrel's release builds, so a pull request
@@ -65,8 +85,4 @@ could make `check` crash. It is fixed, with a regression test.
 
 ## What is not yet done
 
-- No advisory or supply-chain check runs: there is no `cargo deny` or
-  `cargo vet` configuration, and no `SUPPLY-CHAIN.md`.
-- pubrel's own `release.json` declares no `security` checks, so its
-  releases carry no signed security record.
 - CI does not test on a 32-bit or a big-endian target.
