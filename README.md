@@ -316,4 +316,4 @@ held to the rules it provides.
 
 ## Licence
 
-MIT.
+Apache-2.0: see [`LICENSE`](LICENSE).
